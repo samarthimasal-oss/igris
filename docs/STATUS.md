@@ -82,4 +82,9 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; com
 - [x] NSIS installer builds.
 - [x] README and security/architecture/testing docs written.
 - [x] `.gitignore` excludes builds, dependencies, test artifacts, screenshots, and secrets.
-- [ ] Initialize git, create `samarthimasal-oss/igris`, commit, push, and verify the remote.
+- [x] Initialized git, created [`samarthimasal-oss/igris`](https://github.com/samarthimasal-oss/igris), committed, pushed `main`, and verified the remote commit.
+
+**Initial release commit:** `c315cd7a09641a33d0337214c607a12f9b32e447`  
+**Remote:** `https://github.com/samarthimasal-oss/igris` (public, branch `main`)
+
+The NSIS installer is built locally but intentionally not committed. It is unsigned and is not attached to a GitHub release.
