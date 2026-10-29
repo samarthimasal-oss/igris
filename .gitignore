@@ -1,0 +1,33 @@
+node_modules/
+out/
+release/
+dist/
+
+# Test and QA artifacts
+coverage/
+test-results/
+playwright-report/
+screenshots/
+*.tsbuildinfo
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Logs and OS clutter
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor scratch files
+.vscode/*
+!.vscode/extensions.json
+.idea/

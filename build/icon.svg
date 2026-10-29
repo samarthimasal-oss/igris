@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14171d"/>
+      <stop offset="0.52" stop-color="#08090c"/>
+      <stop offset="1" stop-color="#10141a"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2f6fb"/>
+      <stop offset="0.35" stop-color="#8d99a9"/>
+      <stop offset="0.65" stop-color="#d9e2ec"/>
+      <stop offset="1" stop-color="#5c6877"/>
+    </linearGradient>
+    <radialGradient id="core" cx="0.42" cy="0.36" r="0.72">
+      <stop offset="0" stop-color="#eafaff"/>
+      <stop offset="0.3" stop-color="#8ee7ff"/>
+      <stop offset="0.66" stop-color="#2aa8ff"/>
+      <stop offset="1" stop-color="#0a3d78"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="26" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect x="24" y="24" width="976" height="976" rx="224" fill="url(#bg)"/>
+  <rect x="25.5" y="25.5" width="973" height="973" rx="222.5" fill="none" stroke="#2b313b" stroke-width="3"/>
+  <circle cx="512" cy="512" r="296" fill="none" stroke="url(#metal)" stroke-width="12" opacity="0.92"/>
+  <circle cx="512" cy="512" r="246" fill="none" stroke="#5cc8ff" stroke-width="3" opacity="0.38"/>
+  <g opacity="0.72" stroke="#9aa7b8" stroke-width="7" stroke-linecap="round">
+    <path d="M512 140v66"/>
+    <path d="M512 818v66"/>
+    <path d="M140 512h66"/>
+    <path d="M818 512h66"/>
+  </g>
+  <g filter="url(#glow)">
+    <circle cx="512" cy="512" r="168" fill="url(#core)" opacity="0.28"/>
+    <circle cx="512" cy="512" r="104" fill="url(#core)"/>
+  </g>
+  <circle cx="512" cy="512" r="104" fill="none" stroke="#c9f4ff" stroke-width="4" opacity="0.8"/>
+  <path d="M512 378l116 67v134l-116 67-116-67V445z" fill="none" stroke="#d8e5f2" stroke-width="9" opacity="0.5"/>
+  <circle cx="478" cy="486" r="15" fill="#07111c" opacity="0.55"/>
+  <circle cx="546" cy="486" r="15" fill="#07111c" opacity="0.55"/>
+  <path d="M472 558c24 18 56 18 80 0" fill="none" stroke="#07111c" stroke-width="11" stroke-linecap="round" opacity="0.6"/>
+</svg>

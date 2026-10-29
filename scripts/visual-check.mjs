@@ -1,0 +1,106 @@
+import { _electron as electron } from 'playwright'
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+
+const outDir = join(process.cwd(), 'screenshots')
+mkdirSync(outDir, { recursive: true })
+
+const app = await electron.launch({
+  args: ['.'],
+  env: { ...process.env, IGRIS_E2E: '1' },
+  timeout: 60000
+})
+
+const page = await app.firstWindow()
+page.on('console', (message) => {
+  if (message.type() === 'error' || message.type() === 'warning') {
+    console.log(`[renderer:${message.type()}] ${message.text()}`)
+  }
+})
+page.on('pageerror', (error) => console.log(`[pageerror] ${error.message}`))
+
+await page.waitForLoadState('domcontentloaded')
+await page.waitForTimeout(2500)
+
+const shot = async (name) => {
+  await page.screenshot({ path: join(outDir, name), animations: 'disabled' })
+  console.log(`captured ${name}`)
+}
+
+await shot('01-initial.png')
+
+const skip = page.locator('.onboarding-skip')
+if (await skip.isVisible().catch(() => false)) {
+  await skip.click()
+  await page.waitForTimeout(600)
+}
+
+await shot('02-home.png')
+
+const routes = [
+  ['chat', '03-chat.png'],
+  ['projects', '04-projects.png'],
+  ['computer', '05-computer.png'],
+  ['models', '06-models.png'],
+  ['tools', '07-tools.png'],
+  ['activity', '08-activity.png'],
+  ['settings', '09-settings.png']
+]
+
+for (const [route, file] of routes) {
+  await page.evaluate((next) => {
+    window.location.hash = `#/${next}`
+  }, route)
+  await page.waitForTimeout(700)
+  await shot(file)
+}
+
+// Settings: scroll to show a second section.
+await page.evaluate(() => {
+  document.getElementById('settings-permissions')?.scrollIntoView({ block: 'start' })
+})
+await page.waitForTimeout(500)
+await shot('10-settings-permissions.png')
+
+await page.evaluate(() => {
+  window.location.hash = '#/'
+})
+await page.waitForTimeout(400)
+
+// Companion
+await page.evaluate(async () => {
+  await window.igris.companion.show()
+})
+await page.waitForTimeout(1400)
+const windows = app.windows()
+console.log(`windows: ${windows.length}`)
+const companion = windows.find((candidate) => candidate.url().includes('companion.html'))
+if (companion) {
+  await companion.waitForLoadState('domcontentloaded')
+  await companion.waitForTimeout(900)
+  await companion.screenshot({ path: join(outDir, '11-companion.png'), omitBackground: true })
+  console.log('captured 11-companion.png')
+} else {
+  console.log('companion window not found')
+}
+
+// Quick DOM audit: report horizontal overflow and key layout boxes.
+const audit = await page.evaluate(() => {
+  const pages = ['.home-page', '.chat-page', '.projects-page', '.computer-page', '.models-page', '.tools-page', '.activity-page', '.settings-page']
+  return {
+    title: document.title,
+    size: { width: window.innerWidth, height: window.innerHeight },
+    scrollWidth: document.documentElement.scrollWidth,
+    scrollHeight: document.documentElement.scrollHeight,
+    visiblePage: pages.find((selector) => {
+      const node = document.querySelector(selector)
+      return node && node.getBoundingClientRect().height > 0
+    }),
+    theme: document.documentElement.dataset.accent,
+    hasBridge: Boolean(window.igris)
+  }
+})
+console.log(JSON.stringify(audit, null, 2))
+
+await app.close()
+console.log('closed')
