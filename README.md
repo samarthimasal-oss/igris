@@ -134,6 +134,8 @@ The model never receives a raw shell. It receives typed tool schemas; the main p
 
 The companion is its own native window: frameless, transparent, draggable, and always-on-top. It reports idle, listening, thinking, working, success, and error states, accepts a quick ask into the main workspace, and can be pinned or hidden independently.
 
+Minimizing the workspace leaves a compact robot bubble on the desktop. Drag it out of the way or click it to bring IGRIS back; it disappears the moment the main window returns.
+
 ![IGRIS companion](docs/images/companion.jpg)
 
 ---
@@ -186,7 +188,7 @@ Use **Settings → Privacy & data** to export data, clear conversation and memor
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Electron + Vite development with HMR |
-| `npm run build` | Type-check and build main, preload, renderer, and companion |
+| `npm run build` | Type-check and build main, preload, renderer, companion, and mini launcher |
 | `npm start` | Preview the production build |
 | `npm test` | Vitest unit and integration suite |
 | `npm run test:e2e` | Build, then run Playwright Electron smoke tests |
@@ -199,8 +201,8 @@ Use **Settings → Privacy & data** to export data, clear conversation and memor
 ### Verification status
 
 - `npm run typecheck` — passing
-- `npm test` — **79 tests passing** across 10 files
-- `npm run test:e2e` — **7 Electron smoke tests passing**
+- `npm test` - **79 tests passing** across 10 files
+- `npm run test:e2e` - **8 Electron smoke tests passing**
 - `npm run test:packaged` — packaged `IGRIS.exe` boots, bridges, and routes
 - `npm run pack` — passing (`release/win-unpacked/IGRIS.exe`)
 - `npm run dist` — passing (`release/IGRIS-1.0.0-x64-Setup.exe`)
@@ -222,11 +224,11 @@ src/
     storage/     SQLite database and repositories
     tasks/       task state and orchestration
     tools/       tool registry and runtime
-    windows/     main, companion, paths
+    windows/     main, companion, mini, paths
     ipc.ts       validated dispatcher and role allowlists
     index.ts     boot, lifecycle, wiring
   preload/       contextBridge and type declarations
-  renderer/      React application and companion UI
+  renderer/      React application, companion, and mini launcher UI
   shared/        types, defaults, settings normalization, IPC contract
 tests/
   unit/          pure security, settings, SSE, error, state tests

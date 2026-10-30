@@ -10,6 +10,7 @@ export class MainWindowManager {
   private quitting = false
   private pendingNavigation: NavigateEvent | null = null
   private rendererReady = false
+  private minimizeListener: ((minimized: boolean) => void) | null = null
 
   constructor(
     private readonly roles: Map<number, WindowRole>,
@@ -23,6 +24,10 @@ export class MainWindowManager {
 
   isQuitting(): boolean {
     return this.quitting
+  }
+
+  setMinimizeListener(listener: (minimized: boolean) => void): void {
+    this.minimizeListener = listener
   }
 
   getWindow(): BrowserWindow | null {
@@ -62,6 +67,11 @@ export class MainWindowManager {
       win.show()
       win.focus()
     })
+
+    win.on('minimize', () => this.minimizeListener?.(true))
+    win.on('restore', () => this.minimizeListener?.(false))
+    win.on('show', () => this.minimizeListener?.(false))
+    win.on('hide', () => this.minimizeListener?.(false))
 
     win.webContents.on('did-start-loading', () => {
       this.rendererReady = false

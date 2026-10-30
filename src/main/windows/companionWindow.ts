@@ -224,4 +224,11 @@ export class CompanionManager {
   isOpen(): boolean {
     return Boolean(this.win && !this.win.isDestroyed())
   }
+
+  getBounds(): { x: number; y: number; width: number; height: number } | null {
+    if (!this.win || this.win.isDestroyed() || !this.win.isVisible()) return null
+    const [x, y] = this.win.getPosition()
+    const [width, height] = this.win.getSize()
+    return { x, y, width, height }
+  }
 }

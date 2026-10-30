@@ -16,7 +16,7 @@ IGRIS is a local desktop agent, not a sandbox. Its security goal is to make powe
 
 ## Renderer isolation
 
-- `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webSecurity: true` for the main, companion, and browser-shell windows.
+- `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webSecurity: true` for the main, companion, mini-launcher, and browser-shell windows.
 - The renderer has no direct Node, filesystem, shell, database, or secret access.
 - Production responses receive:
 
@@ -36,13 +36,13 @@ IGRIS is a local desktop agent, not a sandbox. Its security goal is to make powe
 
 Every renderer call goes through `igris:call` and is:
 
-1. matched to a known `webContents` role (`main`, `companion`, `browser`);
+1. matched to a known `webContents` role (`main`, `companion`, `browser`, `mini`);
 2. checked against a per-role method allowlist;
 3. validated by a Zod schema (size, type, enum, numeric range);
 4. executed against services in the main process;
 5. returned as a typed envelope with sanitized errors.
 
-The companion cannot invoke chat, providers, files, terminal, or settings. The browser shell cannot invoke application services.
+The companion cannot invoke chat, providers, files, terminal, or settings. The browser shell cannot invoke application services. The minimized launcher may only restore the main window.
 
 ## Credential handling
 

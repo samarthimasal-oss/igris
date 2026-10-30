@@ -164,6 +164,8 @@ export interface IpcContract {
   'companion.show': { input: void; output: OkResult }
   'companion.setAlwaysOnTop': { input: { value: boolean }; output: CompanionState }
 
+  'mini.restore': { input: void; output: OkResult }
+
   'ui.ready': { input: void; output: OkResult }
   'ui.draft': { input: { text: string }; output: OkResult }
 }
@@ -311,6 +313,9 @@ export interface IgrisBridge {
     setAlwaysOnTop: (value: boolean) => Promise<CompanionState>
     onEvent: (listener: (event: CompanionEvent) => void) => () => void
   }
+  mini: {
+    restore: () => Promise<OkResult>
+  }
   ui: {
     ready: () => Promise<OkResult>
     draft: (text: string) => Promise<OkResult>
@@ -329,11 +334,12 @@ export const IPC_COMPANION_EVENT = 'igris:companion-event'
 export const IPC_DRAFT_EVENT = 'igris:draft-event'
 export const IPC_NAVIGATE_EVENT = 'igris:navigate-event'
 
-export type WindowRole = 'main' | 'companion' | 'browser'
+export type WindowRole = 'main' | 'companion' | 'browser' | 'mini'
 
 export const ROLE_METHOD_ALLOWLIST: Record<WindowRole, IpcMethod[] | 'all'> = {
   main: 'all',
   companion: ['companion.state', 'companion.openMain', 'companion.ask', 'companion.hide', 'companion.show'],
+  mini: ['mini.restore'],
   browser: [
     'browser.shellReady',
     'browser.shellBounds',

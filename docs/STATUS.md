@@ -18,13 +18,13 @@
 | Permissioned tools | Complete | 8 permissions, 29 tools, risk levels, confirmations, timeouts |
 | Task/activity tracking | Complete | Tasks, steps, tool runs, approvals, diagnostics |
 | Cancellation | Complete | Abort controllers, pending-approval rejection, shutdown cancellation |
-| Native companion | Complete | Separate transparent always-on-top window, states, quick ask, persistence |
+| Native companion | Complete | Separate transparent always-on-top window, states, quick ask, persistence; mini robot launcher on minimize |
 | Browser assistance | Complete | Sandboxed WebContentsView, toolbar, search, YouTube, read/click/fill |
 | Coding/filesystem assistant | Complete | Project scan, tree, editor, search, patch, backups, checkpoints |
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
 | Windows 10/11 packaging | Complete | NSIS installer built at `release/IGRIS-1.0.0-x64-Setup.exe` |
-| Tests | Complete | 79 unit/integration + 7 Electron E2E passing |
+| Tests | Complete | 79 unit/integration + 8 Electron E2E passing |
 | Documentation | Complete | README + architecture, security, testing, status docs |
 | Secrets excluded from git | Complete | `.gitignore`; no keys or `.env` files in the tree |
 
@@ -33,7 +33,7 @@
 ```text
 npm run typecheck   PASS
 npm test            10 files, 79 tests PASS
-npm run test:e2e    7 tests PASS
+npm run test:e2e    8 tests PASS
 npm run test:packaged PASS (packaged IGRIS.exe)
 npm run pack        PASS -> release/win-unpacked/IGRIS.exe
 npm run dist        PASS -> release/IGRIS-1.0.0-x64-Setup.exe
@@ -45,7 +45,7 @@ OpenRouter free-model discovery: PASS against the live catalogue (16 free models
 
 Gemini live verification: PASS — `gemini-3.6-flash` streamed “IGRIS online” through the IGRIS chat engine; 46 models were discovered. The key was stored only as a DPAPI-encrypted blob.
 
-Visual QA at 1442×816: no horizontal overflow on any route; bridge present; companion window renders. Three.js emits a harmless `THREE.Clock` deprecation warning from a dependency.
+Visual QA at 1442×816: no horizontal overflow on any route; bridge present; companion and minimized robot launcher render. Three.js emits a harmless `THREE.Clock` deprecation warning from a dependency.
 
 ## Deliberate scope decisions
 

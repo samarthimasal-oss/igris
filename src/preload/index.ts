@@ -212,6 +212,9 @@ const bridge: IgrisBridge = {
     setAlwaysOnTop: (value: boolean) => invoke('companion.setAlwaysOnTop', { value }),
     onEvent: (listener: (event: CompanionEvent) => void) => subscribe(IPC_COMPANION_EVENT, listener)
   },
+  mini: {
+    restore: () => invoke('mini.restore')
+  },
   ui: {
     ready: () => invoke('ui.ready'),
     draft: (text: string) => invoke('ui.draft', { text })

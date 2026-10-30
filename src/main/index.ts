@@ -44,6 +44,7 @@ import { ToolRuntime } from './tools/toolRuntime'
 import { ChatEngine } from './ai/chatEngine'
 import { MainWindowManager } from './windows/mainWindow'
 import { CompanionManager } from './windows/companionWindow'
+import { MiniLauncherManager } from './windows/miniWindow'
 import { createIpcDispatcher, type AppContext } from './ipc'
 import { TRAY_ICON_PNG } from './trayIcon'
 
@@ -54,6 +55,7 @@ let db: Database | null = null
 let tray: Tray | null = null
 let mainWindow: MainWindowManager | null = null
 let companion: CompanionManager | null = null
+let miniLauncher: MiniLauncherManager | null = null
 let browser: BrowserService | null = null
 let chat: ChatEngine | null = null
 let settingsService: SettingsService | null = null
@@ -113,8 +115,10 @@ async function start(): Promise<void> {
     try {
       mainWindow?.setQuitting(true)
       companion?.setQuitting(true)
+      miniLauncher?.setQuitting(true)
       chat?.cancelAll('shutdown')
       browser?.dispose()
+      miniLauncher?.close()
       companion?.close()
     } catch {
       // Continue shutdown even if a window is already gone.
@@ -177,6 +181,13 @@ async function boot(): Promise<void> {
     main.send(IPC_COMPANION_EVENT, event)
   })
   companion = companionManager
+
+  const mini = new MiniLauncherManager(roles, appLogger, () => companionManager.getBounds())
+  miniLauncher = mini
+  main.setMinimizeListener((minimized) => {
+    if (minimized) mini.show()
+    else mini.hide()
+  })
 
   let browserServiceRef: BrowserService | null = null
   const emitBrowserState = (state: BrowserState): void => {

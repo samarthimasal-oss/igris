@@ -85,6 +85,30 @@ if (companion) {
   console.log('companion window not found')
 }
 
+// Minimized launcher.
+await app.evaluate(({ BrowserWindow }) => {
+  const main = BrowserWindow.getAllWindows().find((candidate) =>
+    candidate.webContents.getURL().includes('index.html')
+  )
+  main?.minimize()
+})
+await page.waitForTimeout(1000)
+const mini = app.windows().find((candidate) => candidate.url().includes('mini.html'))
+if (mini) {
+  await mini.waitForLoadState('domcontentloaded')
+  await mini.waitForTimeout(500)
+  await mini.evaluate(() => {
+    document.documentElement.style.background = '#171b22'
+    document.body.style.background = '#171b22'
+  })
+  await mini.screenshot({ path: join(outDir, '13-mini.png') })
+  console.log('captured 13-mini.png')
+  await mini.getByRole('button', { name: 'Open IGRIS' }).click()
+  await page.waitForTimeout(900)
+} else {
+  console.log('mini launcher not found')
+}
+
 // Quick DOM audit: report horizontal overflow and key layout boxes.
 const audit = await page.evaluate(() => {
   const pages = ['.home-page', '.chat-page', '.projects-page', '.computer-page', '.models-page', '.tools-page', '.activity-page', '.settings-page', '.history-page']

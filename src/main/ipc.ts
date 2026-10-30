@@ -725,6 +725,11 @@ function buildHandlers(ctx: AppContext): Record<IpcMethod, Handler> {
       return ctx.companion.state()
     },
 
+    'mini.restore': () => {
+      ctx.mainWindow.focus()
+      return { ok: true }
+    },
+
     'ui.ready': () => {
       ctx.mainWindow.markReady()
       return { ok: true }

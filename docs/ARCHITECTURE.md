@@ -25,6 +25,7 @@ main process
 - A `Map<webContents.id, WindowRole>` assigns every window a role. The IPC dispatcher checks the methods allowed for that role.
 - The main window may call every method. The companion may only read/show itself, hide, ask, and open the main window. The browser shell may only manage its own surface.
 - The companion is restored to a clamped on-screen position, saves moves after a short debounce, and hides instead of closing.
+- A 112x112 transparent, always-on-top robot bubble appears when the main window is minimized. It is draggable, restores the workspace on click, and hides when the main window returns.
 - The application is single-instance and tray-resident. Shutdown cancels active chat runs, closes windows, optionally clears history, and closes SQLite cleanly.
 
 ## Boot sequence
@@ -46,6 +47,7 @@ main process
 - The 3D core uses React Three Fiber/Three.js with a procedural scene. `appearance.show3d`, quality, animation intensity, reduced motion, and the selected accent are settings-driven.
 - If WebGL is unavailable, the component renders a static CSS core instead of failing the page.
 - The companion is a separate HTML entry and React root, styled by `companion.css`.
+- The minimized launcher is a separate HTML entry (`mini.html`) and React root, styled by `mini.css`.
 - The browser shell is a local React toolbar; the actual page is a main-process `WebContentsView` whose bounds the shell reports over IPC.
 
 ## IPC boundary

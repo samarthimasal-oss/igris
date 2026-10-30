@@ -216,3 +216,48 @@ test('opens the native companion and hides it again', async () => {
     .toBe(false)
   expect(pageErrors).toEqual([])
 })
+
+test('minimizes into a robot launcher and restores the workspace', async () => {
+  const routeBefore = await page.evaluate(() => window.location.hash)
+  await app.evaluate(({ BrowserWindow }) => {
+    const main = BrowserWindow.getAllWindows().find((candidate) =>
+      candidate.webContents.getURL().includes('index.html')
+    )
+    main?.minimize()
+  })
+
+  await expect
+    .poll(async () => app.windows().some((candidate) => candidate.url().includes('mini.html')))
+    .toBe(true)
+
+  const mini = app.windows().find((candidate) => candidate.url().includes('mini.html'))
+  if (!mini) throw new Error('The mini launcher did not open.')
+  await mini.waitForLoadState('domcontentloaded')
+  const restore = mini.getByRole('button', { name: 'Open IGRIS' })
+  await expect(restore).toBeVisible()
+  await restore.click()
+
+  await expect
+    .poll(async () =>
+      app.evaluate(({ BrowserWindow }) => {
+        const main = BrowserWindow.getAllWindows().find((candidate) =>
+          candidate.webContents.getURL().includes('index.html')
+        )
+        return Boolean(main && main.isVisible() && !main.isMinimized())
+      })
+    )
+    .toBe(true)
+
+  await expect
+    .poll(async () =>
+      app.evaluate(({ BrowserWindow }) => {
+        const miniWindow = BrowserWindow.getAllWindows().find((candidate) =>
+          candidate.webContents.getURL().includes('mini.html')
+        )
+        return miniWindow?.isVisible() ?? false
+      })
+    )
+    .toBe(false)
+  expect(await page.evaluate(() => window.location.hash)).toBe(routeBefore)
+  expect(pageErrors).toEqual([])
+})
