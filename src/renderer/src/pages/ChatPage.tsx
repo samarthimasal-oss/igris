@@ -11,38 +11,23 @@ import {
   Check,
   Copy,
   Edit3,
-  MessageSquare,
   Pencil,
-  Plus,
   RotateCcw,
-  Search,
   SendHorizontal,
   Sparkles,
-  Square,
-  Trash2,
-  X
+  Square
 } from 'lucide-react'
 import { useAppStore, selectLatestActiveRun, type ActiveRun } from '../lib/store'
-import { MessageText, plainPreview } from '../components/Markdown'
+import { MessageText } from '../components/Markdown'
 import {
   ToolTimeline,
   fromToolEvents,
   fromToolRecords,
   type TimelineItem
 } from '../components/ToolTimeline'
-import {
-  Badge,
-  Button,
-  ConfirmDialog,
-  IconButton,
-  Input,
-  Modal,
-  Spinner,
-  Textarea
-} from '../components/ui'
-import { clockTime, fullTime, plural, relativeTime, truncate } from '../lib/format'
+import { Badge, Button, IconButton, Input, Modal, Spinner, Textarea } from '../components/ui'
+import { clockTime, fullTime } from '../lib/format'
 import type { ChatMessage } from '@shared/types'
-import clsx from 'clsx'
 
 const SUGGESTIONS = [
   'What can you do with the permissions I have enabled?',
@@ -271,7 +256,6 @@ export function ChatPage() {
   const settings = useAppStore((state) => state.settings)
   const providers = useAppStore((state) => state.providers)
   const workspaces = useAppStore((state) => state.workspaces)
-  const conversations = useAppStore((state) => state.conversations)
   const activeConversation = useAppStore((state) => state.activeConversation)
   const messages = useAppStore((state) => state.messages)
   const loadingConversation = useAppStore((state) => state.loadingConversation)
@@ -285,20 +269,17 @@ export function ChatPage() {
   const cancelRun = useAppStore((state) => state.cancelRun)
   const regenerate = useAppStore((state) => state.regenerate)
   const editAndResend = useAppStore((state) => state.editAndResend)
-  const deleteConversation = useAppStore((state) => state.deleteConversation)
   const renameConversation = useAppStore((state) => state.renameConversation)
   const setComposerDraft = useAppStore((state) => state.setComposerDraft)
   const setPreferredProvider = useAppStore((state) => state.setPreferredProvider)
   const setPreferredWorkspace = useAppStore((state) => state.setPreferredWorkspace)
   const notify = useAppStore((state) => state.notify)
 
-  const [query, setQuery] = useState('')
   const [draft, setDraft] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null)
   const [renameValue, setRenameValue] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
   const [busyDialog, setBusyDialog] = useState(false)
   const [showJump, setShowJump] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
@@ -322,16 +303,6 @@ export function ChatPage() {
     element.style.height = '0px'
     element.style.height = `${Math.min(190, Math.max(48, element.scrollHeight))}px`
   }, [draft])
-
-  const filteredConversations = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    if (!needle) return conversations
-    return conversations.filter(
-      (conversation) =>
-        conversation.title.toLowerCase().includes(needle) ||
-        (conversation.lastMessage ?? '').toLowerCase().includes(needle)
-    )
-  }, [conversations, query])
 
   const conversationRuns = useMemo(() => {
     if (!conversationId) return []
@@ -406,12 +377,6 @@ export function ChatPage() {
     }
   }
 
-  const startNew = (): void => {
-    newConversation()
-    navigate('/chat')
-    window.setTimeout(() => composerRef.current?.focus(), 30)
-  }
-
   const openRename = (id: string, title: string): void => {
     setRenameTarget({ id, title })
     setRenameValue(title)
@@ -423,16 +388,6 @@ export function ChatPage() {
     await renameConversation(renameTarget.id, renameValue.trim())
     setBusyDialog(false)
     setRenameTarget(null)
-  }
-
-  const confirmDelete = async (): Promise<void> => {
-    if (!deleteTarget) return
-    setBusyDialog(true)
-    await deleteConversation(deleteTarget.id)
-    setBusyDialog(false)
-    const wasCurrent = deleteTarget.id === conversationId
-    setDeleteTarget(null)
-    if (wasCurrent) navigate('/chat', { replace: true })
   }
 
   const beginEdit = (message: ChatMessage): void => {
@@ -453,87 +408,6 @@ export function ChatPage() {
 
   return (
     <div className="chat-page">
-      <aside className="chat-rail">
-        <div className="chat-rail-head">
-          <div className="chat-rail-title">
-            <span>Threads</span>
-            <Badge tone="neutral">{conversations.length}</Badge>
-          </div>
-          <IconButton label="New conversation" size="sm" onClick={startNew}>
-            <Plus size={15} />
-          </IconButton>
-        </div>
-        <div className="chat-search">
-          <Search size={13} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search history"
-            aria-label="Search conversations"
-          />
-          {query ? (
-            <button type="button" aria-label="Clear search" onClick={() => setQuery('')}>
-              <X size={12} />
-            </button>
-          ) : null}
-        </div>
-        <div className="chat-rail-list">
-          {filteredConversations.length ? (
-            filteredConversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                className={clsx(
-                  'conversation-row',
-                  conversation.id === conversationId && 'is-active'
-                )}
-              >
-                <button
-                  type="button"
-                  className="conversation-main"
-                  onClick={() => navigate(`/chat/${conversation.id}`)}
-                >
-                  <span className="conversation-title">{conversation.title}</span>
-                  <span className="conversation-preview">
-                    {conversation.lastMessage
-                      ? truncate(plainPreview(conversation.lastMessage, 80), 80)
-                      : 'No messages yet'}
-                  </span>
-                  <span className="conversation-meta">
-                    {relativeTime(conversation.updatedAt)}
-                    <span>·</span>
-                    {plural(conversation.messageCount, 'msg')}
-                  </span>
-                </button>
-                <div className="conversation-actions">
-                  <IconButton
-                    label="Rename conversation"
-                    size="sm"
-                    onClick={() => openRename(conversation.id, conversation.title)}
-                  >
-                    <Pencil size={11} />
-                  </IconButton>
-                  <IconButton
-                    label="Delete conversation"
-                    size="sm"
-                    onClick={() => setDeleteTarget(conversation)}
-                  >
-                    <Trash2 size={11} />
-                  </IconButton>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="chat-rail-empty">
-              <MessageSquare size={18} />
-              <p>{query ? 'No threads match that search.' : 'No conversation history yet.'}</p>
-            </div>
-          )}
-        </div>
-        <div className="chat-rail-foot">
-          <span>Stored locally</span>
-          <span>{settings?.privacy.saveConversations ? 'Retention on' : 'Not saved on exit'}</span>
-        </div>
-      </aside>
 
       <section className="chat-main">
         <header className="chat-header">
@@ -791,21 +665,6 @@ export function ChatPage() {
           maxLength={120}
         />
       </Modal>
-
-      <ConfirmDialog
-        open={Boolean(deleteTarget)}
-        title="Delete this conversation?"
-        description={
-          <>
-            <strong>{deleteTarget?.title}</strong> and its messages will be removed from the
-            local database. This cannot be undone.
-          </>
-        }
-        confirmLabel="Delete conversation"
-        busy={busyDialog}
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={() => void confirmDelete()}
-      />
     </div>
   )
 }

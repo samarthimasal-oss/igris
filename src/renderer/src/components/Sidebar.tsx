@@ -4,6 +4,7 @@ import {
   Bot,
   Cpu,
   FolderKanban,
+  History,
   Home,
   MessageSquare,
   Monitor,
@@ -35,7 +36,8 @@ const NAV_GROUPS = [
     label: 'System',
     items: [
       { to: '/activity', label: 'Activity', icon: Activity },
-      { to: '/settings', label: 'Settings', icon: Settings }
+      { to: '/settings', label: 'Settings', icon: Settings },
+      { to: '/history', label: 'History', icon: History }
     ]
   }
 ]

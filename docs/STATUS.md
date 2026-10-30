@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | Premium 3D desktop assistant | Complete | React Three Fiber core, CSS fallback, obsidian/silver/azure system |
 | Distinct accent identities | Complete | Azure, violet, silver; persisted and covered by E2E |
-| Full navigation | Complete | Home, Chat, Projects, Computer, Models, Tools, Activity, Settings |
+| Full navigation | Complete | Home, Chat, Projects, Computer, Models, Tools, Activity, Settings, History |
 | Genuine streaming chat | Complete | Three wire adapters, six provider types (including OpenRouter Free and OpenCode Console) + SSE parser; no simulated fallback |
 | Persistent history | Complete | SQLite conversations/messages, summaries, search, export |
 | Model management | Complete | Add/edit/test/remove providers, model discovery, default routing |

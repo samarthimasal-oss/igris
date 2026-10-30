@@ -132,7 +132,7 @@ IGRIS_USER_DATA=<temp directory>
 Coverage:
 
 1. **Boot and bridge** — title, `window.igris` methods, no horizontal overflow, no uncaught renderer errors.
-2. **Navigation** — every page route renders (`.home-page`, `.chat-page`, `.projects-page`, `.computer-page`, `.models-page`, `.tools-page`, `.activity-page`, `.settings-page`), each without horizontal overflow.
+2. **Navigation** — every page route renders (`.home-page`, `.chat-page`, `.projects-page`, `.computer-page`, `.models-page`, `.tools-page`, `.activity-page`, `.settings-page`, `.history-page`), each without horizontal overflow; the Conversation page no longer contains the thread rail.
 3. **Appearance IPC** — clicking the violet accent changes `data-accent` and persists to the main process; reduce-motion toggles round-trip; azure is restored.
 4. **Provider validation** — the form rejects a plain-HTTP non-local URL, shows the main-process error, and persists zero providers.
 5. **OpenCode preset** — selecting OpenCode fills the gateway endpoint.

@@ -143,7 +143,7 @@ The companion is its own native window: frameless, transparent, draggable, and a
 ```text
 ┌───────────────────────────── Renderer (sandboxed) ─────────────────────────────┐
 │ React 19 + TypeScript + Vite · Home / Chat / Projects / Computer / Models /    │
-│ Tools / Activity / Settings · React Three Fiber core · companion & browser UI  │
+│ Tools / Activity / Settings / History · React Three Fiber core · companion UI  │
 └───────────────────────────────▲────────────────────────────────────────────────┘
                                 │ typed contextBridge API (preload)
 ┌───────────────────────────────┴────────────────────────────────────────────────┐

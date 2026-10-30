@@ -21,6 +21,7 @@ import { ComputerPage } from './pages/ComputerPage'
 import { ModelsPage } from './pages/ModelsPage'
 import { ToolsPage } from './pages/ToolsPage'
 import { ActivityPage } from './pages/ActivityPage'
+import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { BrowserShell } from './pages/BrowserShell'
 
@@ -207,6 +208,7 @@ function MainApp() {
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/activity" element={<ActivityPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/history" element={<HistoryPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

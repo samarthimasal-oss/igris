@@ -41,7 +41,7 @@ main process
 
 ## Renderer
 
-- React 19 + TypeScript + Vite, `HashRouter` routes: Home, Chat, Projects, Computer, Models, Tools, Activity, Settings.
+- React 19 + TypeScript + Vite, `HashRouter` routes: Home, Chat, Projects, Computer, Models, Tools, Activity, Settings, History.
 - Zustand store coordinates settings, providers, tools, health, conversations, tasks, companion state, toasts, and confirmations.
 - The 3D core uses React Three Fiber/Three.js with a procedural scene. `appearance.show3d`, quality, animation intensity, reduced motion, and the selected accent are settings-driven.
 - If WebGL is unavailable, the component renders a static CSS core instead of failing the page.

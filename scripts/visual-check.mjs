@@ -44,7 +44,8 @@ const routes = [
   ['models', '06-models.png'],
   ['tools', '07-tools.png'],
   ['activity', '08-activity.png'],
-  ['settings', '09-settings.png']
+  ['settings', '09-settings.png'],
+  ['history', '12-history.png']
 ]
 
 for (const [route, file] of routes) {
@@ -86,7 +87,7 @@ if (companion) {
 
 // Quick DOM audit: report horizontal overflow and key layout boxes.
 const audit = await page.evaluate(() => {
-  const pages = ['.home-page', '.chat-page', '.projects-page', '.computer-page', '.models-page', '.tools-page', '.activity-page', '.settings-page']
+  const pages = ['.home-page', '.chat-page', '.projects-page', '.computer-page', '.models-page', '.tools-page', '.activity-page', '.settings-page', '.history-page']
   return {
     title: document.title,
     size: { width: window.innerWidth, height: window.innerHeight },

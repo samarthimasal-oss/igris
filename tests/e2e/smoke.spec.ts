@@ -82,6 +82,7 @@ test('navigates every workspace surface', async () => {
     ['tools', '.tools-page'],
     ['activity', '.activity-page'],
     ['settings', '.settings-page'],
+    ['history', '.history-page'],
     ['', '.home-page']
   ]
 
@@ -95,6 +96,12 @@ test('navigates every workspace surface', async () => {
     )
     expect(overflow, `horizontal overflow on ${route || 'home'}`).toBe(false)
   }
+
+  await page.evaluate(() => {
+    window.location.hash = '#/chat'
+  })
+  await page.locator('.chat-page').waitFor({ state: 'visible', timeout: 15_000 })
+  expect(await page.locator('.chat-rail').count()).toBe(0)
   expect(pageErrors).toEqual([])
 })
 
