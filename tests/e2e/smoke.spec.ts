@@ -161,6 +161,19 @@ test('offers OpenCode Console with its gateway endpoint', async () => {
   expect(pageErrors).toEqual([])
 })
 
+test('offers OpenRouter free models with a locked endpoint', async () => {
+  await page.getByRole('button', { name: 'Add provider', exact: true }).first().click()
+  await page.getByRole('radio', { name: /OpenRouter/ }).click()
+
+  await expect(page.locator('#provider-name')).toHaveValue('OpenRouter Free')
+  await expect(page.locator('#provider-base')).toHaveValue('https://openrouter.ai/api/v1')
+  await expect(page.locator('#provider-base')).toBeDisabled()
+  await expect(page.locator('.provider-kind-note', { hasText: ':free' })).toBeVisible()
+
+  await page.locator('.provider-editor').getByRole('button', { name: 'Close', exact: true }).click()
+  expect(pageErrors).toEqual([])
+})
+
 test('opens the native companion and hides it again', async () => {
   let companion = app.windows().find((candidate) => candidate.url().includes('companion.html'))
   if (!companion) {

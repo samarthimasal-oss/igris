@@ -110,12 +110,21 @@ export function isFreeOpenCodeModel(entry: OpenAiModelEntry): boolean {
   return input === 0 && output === 0
 }
 
+/** OpenRouter marks genuinely free endpoints with a `:free` model suffix. */
+export function isFreeOpenRouterModelId(modelId: string): boolean {
+  return modelId.trim().endsWith(':free')
+}
+
+export function isFreeOpenRouterModel(entry: OpenAiModelEntry): boolean {
+  return isFreeOpenRouterModelId(entry.id ?? entry.name ?? '')
+}
+
 export class OpenAiAdapter implements ProviderAdapter {
   readonly kind: ProviderKind
   readonly supportsModelList = true
   private readonly compatible: boolean
 
-  constructor(kind: 'openai' | 'opencode' | 'openai-compatible' = 'openai') {
+  constructor(kind: 'openai' | 'openrouter' | 'opencode' | 'openai-compatible' = 'openai') {
     this.kind = kind
     this.compatible = kind !== 'openai'
   }
@@ -123,6 +132,7 @@ export class OpenAiAdapter implements ProviderAdapter {
   private headers(config: ProviderRuntimeConfig, sessionId?: string): Record<string, string> {
     const headers: Record<string, string> = { 'content-type': 'application/json' }
     if (config.apiKey) headers.authorization = `Bearer ${config.apiKey}`
+    if (this.kind === 'openrouter') headers['x-title'] = 'IGRIS'
     if (this.kind === 'opencode' && sessionId) {
       headers['x-opencode-session'] = `ses_${sessionId}`
     }
@@ -169,7 +179,11 @@ export class OpenAiAdapter implements ProviderAdapter {
       models?: OpenAiModelEntry[]
     }
     const models = (data.data ?? data.models ?? [])
-      .filter((model) => this.kind !== 'opencode' || !isFreeOpenCodeModel(model))
+      .filter((model) => {
+        if (this.kind === 'opencode') return !isFreeOpenCodeModel(model)
+        if (this.kind === 'openrouter') return isFreeOpenRouterModel(model)
+        return true
+      })
       .map((model) => model.id ?? model.name ?? '')
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b))

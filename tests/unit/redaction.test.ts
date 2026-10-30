@@ -3,11 +3,13 @@ import { redactAndTruncate, redactSecrets, truncate } from '../../src/main/secur
 
 describe('redactSecrets', () => {
   it('redacts provider API keys', () => {
-    const input = 'openai=sk-proj-abcdefghijklmnop anthropic=sk-ant-api03-abcdefghijklmnop google=AIzaSyA1234567890abcdefghijkl'
+    const input =
+      'openai=sk-proj-abcdefghijklmnop anthropic=sk-ant-api03-abcdefghijklmnop google=AIzaSyA1234567890abcdefghijkl gemini=AQ.SyntheticTestKey1234567890abcdef'
     const output = redactSecrets(input)
     expect(output).not.toContain('sk-proj-abcdefghijklmnop')
     expect(output).not.toContain('sk-ant-api03-abcdefghijklmnop')
     expect(output).not.toContain('AIzaSyA1234567890abcdefghijkl')
+    expect(output).not.toContain('AQ.SyntheticTestKey1234567890abcdef')
     expect(output).toContain('[redacted-openai-key]')
     expect(output).toContain('[redacted-anthropic-key]')
     expect(output).toContain('[redacted-google-key]')

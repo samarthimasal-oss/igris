@@ -5069,6 +5069,12 @@ svg {
   background: rgba(158, 197, 255, 0.055);
 }
 
+.provider-monogram.kind-openrouter {
+  color: #d8b4fe;
+  border-color: rgba(216, 180, 254, 0.2);
+  background: rgba(216, 180, 254, 0.055);
+}
+
 .provider-monogram.kind-opencode {
   color: #8fe3c2;
   border-color: rgba(143, 227, 194, 0.2);

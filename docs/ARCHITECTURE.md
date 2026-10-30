@@ -65,17 +65,20 @@ This boundary is the reason renderer code can be rich without becoming a securit
 
 ### Provider adapters
 
-`src/main/ai/providers/` contains three wire adapters serving five provider types:
+`src/main/ai/providers/` contains three wire adapters serving six provider types:
 
 | Provider type | Wire protocol | Notes |
 | --- | --- | --- |
 | OpenAI | Chat Completions | SSE streaming, native tool calls, usage chunk |
 | Anthropic | Messages API | Content blocks, `tool_use`/`tool_result`, SSE events |
 | Gemini | Generative Language API | `streamGenerateContent`, function calls |
+| OpenRouter Free | Chat Completions | Reuses the compatible adapter; locks the base URL and filters discovery to `:free` models |
 | OpenCode Console | OpenAI Chat Completions gateway | Reuses the compatible adapter; lists paid models from the gateway catalogue |
 | OpenAI-compatible | Chat Completions | Configurable base URL and tool support |
 
 OpenCode Console translates each request to the model's native API, so Claude, GPT, Gemini and open models all work through the same Chat Completions base URL. Its model catalogue lives at the gateway root (`/inference/v1/models`), which the OpenAI adapter derives from the configured base URL; free-tier models are filtered because OpenCode rejects external clients for those models.
+
+OpenRouter Free uses the same compatible adapter but applies a stricter contract: the base URL is fixed, discovery returns only IDs ending in `:free`, and `ProviderService` rejects a paid model ID at save, test, or chat time. This keeps the provider from silently routing to a billed model.
 
 `src/main/ai/http.ts` normalizes/validates base URLs, performs fetch, maps HTTP failures, and cancels cleanly. `src/main/ai/sse.ts` is an incremental SSE parser that handles CRLF, chunk splits, multi-line data, comments, and trailing events.
 

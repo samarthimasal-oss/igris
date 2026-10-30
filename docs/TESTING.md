@@ -27,14 +27,14 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **75 passing**, 9 files, ~1 s |
-| `npm run test:e2e` | **6 passing**, 1 worker, ~8 s |
+| `npm test` | **79 passing**, 10 files, ~1 s |
+| `npm run test:e2e` | **7 passing**, 1 worker, ~8 s |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
 | `npm run dist` | Pass; `release/IGRIS-1.0.0-x64-Setup.exe` |
 | Visual QA | 11 screenshots captured, no horizontal overflow at 1442×816 |
 
-Live provider calls are intentionally not automated because no API key is present in the repository. The adapters can be exercised manually with a key as described below.
+Live provider calls are intentionally not automated because no API key is present in the repository. The adapters can be exercised manually with a key as described below. OpenRouter catalogue discovery and a streamed Gemini reply were verified manually during development.
 
 ## Unit tests
 
@@ -66,9 +66,23 @@ Live provider calls are intentionally not automated because no API key is presen
 
 ### `tests/unit/redaction.test.ts`
 
-- OpenAI/Anthropic/Google/GitHub key patterns;
+- OpenAI/Anthropic/Google (legacy `AIza` and new `AQ.`)/GitHub key patterns;
 - bearer tokens, labelled secrets, query parameters;
 - truncation and redact-then-truncate behavior.
+
+### `tests/unit/openrouter.test.ts`
+
+- free-only provider registration and locked base URL;
+- `:free` model-ID detection, including whitespace trimming;
+- catalogue filtering plus bearer and `x-title` headers;
+- streaming a free model through Chat Completions.
+
+### `tests/unit/opencode.test.ts`
+
+- pay-as-you-go and Go catalogue URL derivation;
+- free-model detection and exclusion;
+- gateway session header on streamed requests;
+- provider registration and default endpoint.
 
 ### `tests/unit/settings.test.ts`
 
@@ -121,7 +135,9 @@ Coverage:
 2. **Navigation** — every page route renders (`.home-page`, `.chat-page`, `.projects-page`, `.computer-page`, `.models-page`, `.tools-page`, `.activity-page`, `.settings-page`), each without horizontal overflow.
 3. **Appearance IPC** — clicking the violet accent changes `data-accent` and persists to the main process; reduce-motion toggles round-trip; azure is restored.
 4. **Provider validation** — the form rejects a plain-HTTP non-local URL, shows the main-process error, and persists zero providers.
-5. **Companion** — locates the auto-created companion window, verifies its ask input and hide control, and confirms the native window becomes hidden.
+5. **OpenCode preset** — selecting OpenCode fills the gateway endpoint.
+6. **OpenRouter preset** — selecting OpenRouter Free fills the locked endpoint and shows the free-only notice.
+7. **Companion** — locates the auto-created companion window, verifies its ask input and hide control, and confirms the native window becomes hidden.
 
 The test profile is removed after the run. Playwright traces are retained on failure under `test-results/`.
 
@@ -170,7 +186,9 @@ Before releasing a build:
 ### Provider path
 
 - [ ] Add each provider kind; verify key masking after save.
+- [ ] OpenRouter Free: save a key, fetch free models, and confirm a paid model ID is rejected.
 - [ ] OpenCode Console: save a key, fetch paid models, and test a chat with credits or a Go plan.
+- [ ] Gemini: save a key, fetch models, and stream a reply from a current text model such as `gemini-3.6-flash`.
 - [ ] Test a bad key → actionable auth error, no crash.
 - [ ] Test a valid key and model → real streaming response.
 - [ ] Fetch models where supported.

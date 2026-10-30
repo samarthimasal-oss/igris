@@ -11,7 +11,7 @@
 | Premium 3D desktop assistant | Complete | React Three Fiber core, CSS fallback, obsidian/silver/azure system |
 | Distinct accent identities | Complete | Azure, violet, silver; persisted and covered by E2E |
 | Full navigation | Complete | Home, Chat, Projects, Computer, Models, Tools, Activity, Settings |
-| Genuine streaming chat | Complete | Three wire adapters, five provider types (including OpenCode Console) + SSE parser; no simulated fallback |
+| Genuine streaming chat | Complete | Three wire adapters, six provider types (including OpenRouter Free and OpenCode Console) + SSE parser; no simulated fallback |
 | Persistent history | Complete | SQLite conversations/messages, summaries, search, export |
 | Model management | Complete | Add/edit/test/remove providers, model discovery, default routing |
 | Secure API keys | Complete | Windows DPAPI via `safeStorage`; main-process only; masked DTOs |
@@ -24,7 +24,7 @@
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
 | Windows 10/11 packaging | Complete | NSIS installer built at `release/IGRIS-1.0.0-x64-Setup.exe` |
-| Tests | Complete | 75 unit/integration + 6 Electron E2E passing |
+| Tests | Complete | 79 unit/integration + 7 Electron E2E passing |
 | Documentation | Complete | README + architecture, security, testing, status docs |
 | Secrets excluded from git | Complete | `.gitignore`; no keys or `.env` files in the tree |
 
@@ -32,14 +32,18 @@
 
 ```text
 npm run typecheck   PASS
-npm test            9 files, 75 tests PASS
-npm run test:e2e    6 tests PASS
+npm test            10 files, 79 tests PASS
+npm run test:e2e    7 tests PASS
 npm run test:packaged PASS (packaged IGRIS.exe)
 npm run pack        PASS -> release/win-unpacked/IGRIS.exe
 npm run dist        PASS -> release/IGRIS-1.0.0-x64-Setup.exe
 ```
 
 OpenCode Console model discovery: PASS against the live gateway catalogue; free-tier models are excluded because OpenCode rejects non-OpenCode clients. A chat request requires account credits or a Go plan.
+
+OpenRouter free-model discovery: PASS against the live catalogue (16 free models at the time of verification). Paid model IDs are rejected by the provider service guard.
+
+Gemini live verification: PASS — `gemini-3.6-flash` streamed “IGRIS online” through the IGRIS chat engine; 46 models were discovered. The key was stored only as a DPAPI-encrypted blob.
 
 Visual QA at 1442×816: no horizontal overflow on any route; bridge present; companion window renders. Three.js emits a harmless `THREE.Clock` deprecation warning from a dependency.
 

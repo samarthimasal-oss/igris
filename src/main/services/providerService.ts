@@ -13,7 +13,7 @@ import type { CredentialStore } from '../security/credentials'
 import { AppError, normalizeError } from '../security/errors'
 import type { Logger } from './logger'
 import { validateBaseUrl, normalizeBaseUrl } from '../ai/http'
-import { OpenAiAdapter } from '../ai/providers/openai'
+import { OpenAiAdapter, isFreeOpenRouterModelId } from '../ai/providers/openai'
 import { AnthropicAdapter } from '../ai/providers/anthropic'
 import { GeminiAdapter } from '../ai/providers/gemini'
 import type { ProviderAdapter, ProviderRuntimeConfig } from '../ai/types'
@@ -42,6 +42,8 @@ export class ProviderService {
         return new AnthropicAdapter()
       case 'gemini':
         return new GeminiAdapter()
+      case 'openrouter':
+        return new OpenAiAdapter('openrouter')
       case 'opencode':
         return new OpenAiAdapter('opencode')
       case 'openai-compatible':
@@ -113,6 +115,12 @@ export class ProviderService {
       const baseUrl = this.normalizedBaseUrl(kind, input.baseUrl ?? existing?.baseUrl)
       const catalog = PROVIDER_CATALOG[kind]
       const model = (input.defaultModel ?? existing?.defaultModel ?? '').trim().slice(0, 200)
+      if (kind === 'openrouter' && model && !isFreeOpenRouterModelId(model)) {
+        throw new AppError(
+          'VALIDATION',
+          'OpenRouter is restricted to free models. Choose a model ID ending in :free.'
+        )
+      }
       const now = new Date().toISOString()
 
       let keyEnc = existing?.apiKeyEnc ?? null
@@ -195,6 +203,12 @@ export class ProviderService {
     if (!clean) throw new AppError('VALIDATION', 'Choose a model first.')
     const provider = this.repo.get(id)
     if (!provider) throw new AppError('NOT_FOUND', 'Provider not found.')
+    if (provider.kind === 'openrouter' && !isFreeOpenRouterModelId(clean)) {
+      throw new AppError(
+        'VALIDATION',
+        'OpenRouter is restricted to free models. Choose a model ID ending in :free.'
+      )
+    }
     this.repo.patch(id, { defaultModel: clean.slice(0, 200), lastTest: null })
     return this.toDto(this.repo.get(id) as ProviderRow)
   }
@@ -212,6 +226,12 @@ export class ProviderService {
         ? draft.apiKey.trim() || null
         : this.credentials.decrypt(saved?.apiKeyEnc ?? null)
     const model = (draft.model ?? saved?.defaultModel ?? '').trim() || undefined
+    if (kind === 'openrouter' && model && !isFreeOpenRouterModelId(model)) {
+      throw new AppError(
+        'VALIDATION',
+        'OpenRouter is restricted to free models. Choose a model ID ending in :free.'
+      )
+    }
     if (PROVIDER_CATALOG[kind].requiresKey && !apiKey) {
       throw new AppError(
         'AUTH',
@@ -255,9 +275,14 @@ export class ProviderService {
       return {
         supported: true,
         models,
-        message: models.length
-          ? `${models.length} models reported by the provider.`
-          : 'The provider returned an empty model list. You can enter a model ID manually.'
+        message:
+          provider.kind === 'openrouter'
+            ? models.length
+              ? `${models.length} free models available on OpenRouter.`
+              : 'OpenRouter returned no free models right now. Free availability rotates; try again later or enter a model ID ending in :free.'
+            : models.length
+              ? `${models.length} models reported by the provider.`
+              : 'The provider returned an empty model list. You can enter a model ID manually.'
       }
     } catch (error) {
       const normalized = normalizeError(error, 'The model list could not be fetched.')
@@ -332,6 +357,12 @@ export class ProviderService {
     const model = (modelOverride ?? provider.defaultModel).trim()
     if (!model) {
       throw new AppError('CONFIG', 'Select a model for this provider in AI Models.')
+    }
+    if (provider.kind === 'openrouter' && !isFreeOpenRouterModelId(model)) {
+      throw new AppError(
+        'CONFIG',
+        'OpenRouter is restricted to free models. Select a model ending in :free in AI Models.'
+      )
     }
     const catalog = PROVIDER_CATALOG[provider.kind]
     const apiKey = this.credentials.decrypt(provider.apiKeyEnc)

@@ -159,6 +159,7 @@ const providerKindSchema = z.enum([
   'openai',
   'anthropic',
   'gemini',
+  'openrouter',
   'opencode',
   'openai-compatible'
 ])

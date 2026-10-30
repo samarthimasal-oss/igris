@@ -1,4 +1,10 @@
-export type ProviderKind = 'openai' | 'anthropic' | 'gemini' | 'opencode' | 'openai-compatible'
+export type ProviderKind =
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'openrouter'
+  | 'opencode'
+  | 'openai-compatible'
 
 export type AccentName = 'azure' | 'violet' | 'silver'
 export type QualityLevel = 'low' | 'medium' | 'high'

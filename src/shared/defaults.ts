@@ -102,6 +102,21 @@ export const PROVIDER_CATALOG: Record<ProviderKind, ProviderCatalogEntry> = {
     placeholderModel: 'Enter or fetch a Gemini model ID',
     authNote: 'Quotas and billing depend on your Google AI account.'
   },
+  openrouter: {
+    kind: 'openrouter',
+    label: 'OpenRouter Free',
+    shortLabel: 'OpenRouter',
+    description: 'Free models only, routed through OpenRouter’s OpenAI-compatible API.',
+    defaultBaseUrl: 'https://openrouter.ai/api/v1',
+    requiresKey: true,
+    allowsCustomBaseUrl: false,
+    modelListSupport: true,
+    toolSupport: 'configurable',
+    docsUrl: 'https://openrouter.ai/docs/quickstart',
+    placeholderModel: 'e.g. google/gemma-4-31b-it:free',
+    authNote:
+      'Free models are rate-limited and may require enabling prompt logging in your OpenRouter privacy settings.'
+  },
   opencode: {
     kind: 'opencode',
     label: 'OpenCode Console',
@@ -137,6 +152,7 @@ export const PROVIDER_ORDER: ProviderKind[] = [
   'openai',
   'anthropic',
   'gemini',
+  'openrouter',
   'opencode',
   'openai-compatible'
 ]

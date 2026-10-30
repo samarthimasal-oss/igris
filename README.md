@@ -6,7 +6,7 @@ IGRIS is a native Electron application with a React interface, real cloud-model 
 
 ![IGRIS command deck](docs/images/home.jpg)
 
-> **Cloud intelligence only.** IGRIS does not ship a local model, does not silently fall back to one, and never fabricates an assistant response when no provider is configured. Add your own OpenAI, Anthropic, Gemini, OpenCode Console, or OpenAI-compatible key.
+> **Cloud intelligence only.** IGRIS does not ship a local model, does not silently fall back to one, and never fabricates an assistant response when no provider is configured. Add your own OpenAI, Anthropic, Gemini, OpenRouter, OpenCode Console, or OpenAI-compatible key.
 
 ---
 
@@ -64,12 +64,22 @@ The installer is **unsigned** because no code-signing certificate is configured.
 ### Connect a provider
 
 1. Open **AI models**.
-2. Choose **Add provider** and select OpenAI, Anthropic, Google Gemini, OpenCode Console, or an OpenAI-compatible endpoint.
+2. Choose **Add provider** and select OpenAI, Anthropic, Google Gemini, OpenRouter Free, OpenCode Console, or an OpenAI-compatible endpoint.
 3. Enter a display name, optional base URL, API key, and model ID.
 4. Use **Test connection** to verify the key and model before relying on it.
 5. Save. The first provider becomes the default; additional providers can be promoted in one click.
 
 Keys are encrypted with Windows DPAPI in the main process. After saving, the interface receives only a masked hint such as `••••abcd`. API usage is billed by the provider, not by IGRIS.
+
+### OpenRouter Free
+
+OpenRouter offers a rotating catalogue of free models through an OpenAI-compatible API. Create a key at [openrouter.ai/keys](https://openrouter.ai/keys) and choose **OpenRouter Free**.
+
+- The base URL is locked to `https://openrouter.ai/api/v1`.
+- **Fetch** lists only models whose IDs end in `:free`. IGRIS rejects paid IDs when saving, testing, or starting a chat.
+- No OpenRouter credits are needed for `:free` models, but they are rate-limited.
+- Some free models require enabling prompt logging in your OpenRouter privacy settings.
+- The free catalogue rotates. If a model disappears or is throttled, fetch again and choose another `:free` model.
 
 ### OpenCode Console
 
@@ -138,7 +148,8 @@ The companion is its own native window: frameless, transparent, draggable, and a
                                 │ typed contextBridge API (preload)
 ┌───────────────────────────────┴────────────────────────────────────────────────┐
 │ Electron main process                                                          │
-│  ProviderService → SSE adapters (OpenAI / Anthropic / Gemini / OpenCode)       │
+│  ProviderService → adapters (OpenAI / Anthropic / Gemini /                     │
+│  OpenRouter / OpenCode) · streaming, tool calls, discovery                     │
 │  ChatEngine → streaming runs, cancellation, tool loop                          │
 │  ToolRuntime → permissions, confirmations, risk, timeouts, audit                │
 │  Services → files, terminal, apps, screen, input, browser                       │
@@ -188,13 +199,13 @@ Use **Settings → Privacy & data** to export data, clear conversation and memor
 ### Verification status
 
 - `npm run typecheck` — passing
-- `npm test` — **75 tests passing** across 9 files
-- `npm run test:e2e` — **6 Electron smoke tests passing**
+- `npm test` — **79 tests passing** across 10 files
+- `npm run test:e2e` — **7 Electron smoke tests passing**
 - `npm run test:packaged` — packaged `IGRIS.exe` boots, bridges, and routes
 - `npm run pack` — passing (`release/win-unpacked/IGRIS.exe`)
 - `npm run dist` — passing (`release/IGRIS-1.0.0-x64-Setup.exe`)
 
-Live provider calls are not part of the automated suite because no API key is committed. The adapters, SSE parser, error mapping, and request building are covered; configure a key to exercise a real stream.
+Live provider calls are not part of the automated suite because no API key is committed. The adapters, SSE parser, error mapping, and request building are covered; configure a key to exercise a real stream. Manual verification also exercised OpenRouter's free catalogue and a streamed Gemini `gemini-3.6-flash` reply through the chat engine.
 
 See [docs/TESTING.md](docs/TESTING.md) for details.
 
