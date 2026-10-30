@@ -27,8 +27,8 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **71 passing**, 8 files, ~1 s |
-| `npm run test:e2e` | **5 passing**, 1 worker, ~7 s |
+| `npm test` | **75 passing**, 9 files, ~1 s |
+| `npm run test:e2e` | **6 passing**, 1 worker, ~8 s |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
 | `npm run dist` | Pass; `release/IGRIS-1.0.0-x64-Setup.exe` |
@@ -170,6 +170,7 @@ Before releasing a build:
 ### Provider path
 
 - [ ] Add each provider kind; verify key masking after save.
+- [ ] OpenCode Console: save a key, fetch paid models, and test a chat with credits or a Go plan.
 - [ ] Test a bad key → actionable auth error, no crash.
 - [ ] Test a valid key and model → real streaming response.
 - [ ] Fetch models where supported.

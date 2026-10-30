@@ -23,6 +23,7 @@ export interface ProviderRuntimeConfig {
 
 export interface ModelRequest {
   model: string
+  sessionId?: string
   system: string
   messages: ModelMessage[]
   tools: ModelTool[]

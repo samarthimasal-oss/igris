@@ -37,13 +37,15 @@ export class ProviderService {
   private adapter(kind: ProviderKind): ProviderAdapter {
     switch (kind) {
       case 'openai':
-        return new OpenAiAdapter(false)
+        return new OpenAiAdapter('openai')
       case 'anthropic':
         return new AnthropicAdapter()
       case 'gemini':
         return new GeminiAdapter()
+      case 'opencode':
+        return new OpenAiAdapter('opencode')
       case 'openai-compatible':
-        return new OpenAiAdapter(true)
+        return new OpenAiAdapter('openai-compatible')
       default:
         throw new AppError('VALIDATION', 'Unsupported provider type.')
     }

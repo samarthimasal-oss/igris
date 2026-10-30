@@ -52,6 +52,7 @@ const MONOGRAM: Record<ProviderKind, string> = {
   openai: 'OA',
   anthropic: 'AN',
   gemini: 'GE',
+  opencode: 'OC',
   'openai-compatible': 'API'
 }
 
@@ -429,7 +430,7 @@ export function ModelsPage() {
               <EmptyState
                 icon={Cpu}
                 title="No cloud provider yet"
-                description="Connect OpenAI, Anthropic, Gemini, or an OpenAI-compatible endpoint. IGRIS does not run local models."
+                description="Connect OpenAI, Anthropic, Gemini, OpenCode Console, or an OpenAI-compatible endpoint. IGRIS does not run local models."
                 action={
                   <Button variant="primary" icon={<Plus size={15} />} onClick={() => startCreate()}>
                     Connect a provider
@@ -696,7 +697,7 @@ export function ModelsPage() {
                   <span>01</span>
                   <div>
                     <strong>Choose a provider</strong>
-                    <p>OpenAI, Anthropic, Gemini, or any compatible HTTPS endpoint.</p>
+                    <p>OpenAI, Anthropic, Gemini, OpenCode Console, or any compatible HTTPS endpoint.</p>
                   </div>
                 </li>
                 <li>

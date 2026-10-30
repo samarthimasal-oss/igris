@@ -1,4 +1,4 @@
-import type { ToolCall } from '@shared/types'
+import type { ProviderKind, ToolCall } from '@shared/types'
 import { AppError } from '../../security/errors'
 import { normalizeBaseUrl, assertOk, httpRequest } from '../http'
 import { parseSse, readErrorBody, tryParseJson } from '../sse'
@@ -14,6 +14,17 @@ interface OpenAiToolCallDelta {
   index?: number
   id?: string
   function?: { name?: string; arguments?: string }
+}
+
+interface OpenAiModelEntry {
+  id?: string
+  name?: string
+  cost?: {
+    text?: {
+      input?: { price?: number }
+      output?: { price?: number }
+    }
+  }
 }
 
 interface OpenAiChunk {
@@ -81,19 +92,40 @@ function mapMessages(request: ModelRequest): unknown[] {
   return messages
 }
 
+/**
+ * OpenCode exposes its model catalogue at the gateway root, not under the
+ * OpenAI-compatible path used for chat completions. Derive the real endpoint
+ * for both pay-as-you-go and Go base URLs.
+ */
+export function openCodeModelsUrl(baseUrl: string): string {
+  const base = normalizeBaseUrl(baseUrl)
+  const match = /^(.*)\/openai\/v1$/.exec(base)
+  return match ? `${match[1]}/v1/models` : `${base}/models`
+}
+
+/** Free OpenCode models are restricted to OpenCode itself and fail from other clients. */
+export function isFreeOpenCodeModel(entry: OpenAiModelEntry): boolean {
+  const input = entry.cost?.text?.input?.price
+  const output = entry.cost?.text?.output?.price
+  return input === 0 && output === 0
+}
+
 export class OpenAiAdapter implements ProviderAdapter {
-  readonly kind
+  readonly kind: ProviderKind
   readonly supportsModelList = true
   private readonly compatible: boolean
 
-  constructor(compatible = false) {
-    this.compatible = compatible
-    this.kind = compatible ? ('openai-compatible' as const) : ('openai' as const)
+  constructor(kind: 'openai' | 'opencode' | 'openai-compatible' = 'openai') {
+    this.kind = kind
+    this.compatible = kind !== 'openai'
   }
 
-  private headers(config: ProviderRuntimeConfig): Record<string, string> {
+  private headers(config: ProviderRuntimeConfig, sessionId?: string): Record<string, string> {
     const headers: Record<string, string> = { 'content-type': 'application/json' }
     if (config.apiKey) headers.authorization = `Bearer ${config.apiKey}`
+    if (this.kind === 'opencode' && sessionId) {
+      headers['x-opencode-session'] = `ses_${sessionId}`
+    }
     return headers
   }
 
@@ -122,17 +154,22 @@ export class OpenAiAdapter implements ProviderAdapter {
   }
 
   async listModels(config: ProviderRuntimeConfig): Promise<string[]> {
-    const response = await httpRequest(`${normalizeBaseUrl(config.baseUrl)}/models`, {
+    const endpoint =
+      this.kind === 'opencode'
+        ? openCodeModelsUrl(config.baseUrl)
+        : `${normalizeBaseUrl(config.baseUrl)}/models`
+    const response = await httpRequest(endpoint, {
       method: 'GET',
       headers: this.headers(config),
       signal: AbortSignal.timeout(20000)
     })
     await assertOk(response)
     const data = (await response.json()) as {
-      data?: Array<{ id?: string; name?: string }>
-      models?: Array<{ id?: string; name?: string }>
+      data?: OpenAiModelEntry[]
+      models?: OpenAiModelEntry[]
     }
     const models = (data.data ?? data.models ?? [])
+      .filter((model) => this.kind !== 'opencode' || !isFreeOpenCodeModel(model))
       .map((model) => model.id ?? model.name ?? '')
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b))
@@ -199,7 +236,7 @@ export class OpenAiAdapter implements ProviderAdapter {
   ): AsyncGenerator<ProviderStreamEvent> {
     const response = await httpRequest(`${normalizeBaseUrl(config.baseUrl)}/chat/completions`, {
       method: 'POST',
-      headers: this.headers(config),
+      headers: this.headers(config, request.sessionId),
       body: JSON.stringify(this.body(request, config, true)),
       signal: request.signal
     })

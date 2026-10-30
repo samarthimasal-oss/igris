@@ -6,7 +6,7 @@ IGRIS is a native Electron application with a React interface, real cloud-model 
 
 ![IGRIS command deck](docs/images/home.jpg)
 
-> **Cloud intelligence only.** IGRIS does not ship a local model, does not silently fall back to one, and never fabricates an assistant response when no provider is configured. Add your own OpenAI, Anthropic, Gemini, or OpenAI-compatible key.
+> **Cloud intelligence only.** IGRIS does not ship a local model, does not silently fall back to one, and never fabricates an assistant response when no provider is configured. Add your own OpenAI, Anthropic, Gemini, OpenCode Console, or OpenAI-compatible key.
 
 ---
 
@@ -64,12 +64,22 @@ The installer is **unsigned** because no code-signing certificate is configured.
 ### Connect a provider
 
 1. Open **AI models**.
-2. Choose **Add provider** and select OpenAI, Anthropic, Google Gemini, or an OpenAI-compatible endpoint.
+2. Choose **Add provider** and select OpenAI, Anthropic, Google Gemini, OpenCode Console, or an OpenAI-compatible endpoint.
 3. Enter a display name, optional base URL, API key, and model ID.
 4. Use **Test connection** to verify the key and model before relying on it.
 5. Save. The first provider becomes the default; additional providers can be promoted in one click.
 
 Keys are encrypted with Windows DPAPI in the main process. After saving, the interface receives only a masked hint such as `••••abcd`. API usage is billed by the provider, not by IGRIS.
+
+### OpenCode Console
+
+OpenCode Console is a model gateway: one `oc_sk_...` key reaches Claude, GPT, Gemini, and open coding models. Create a personal key in the [OpenCode Console](https://opencode.ai/console) and choose **OpenCode Console** in IGRIS.
+
+- Pay-as-you-go base URL: `https://opencode.ai/inference/openai/v1`
+- Go base URL: `https://opencode.ai/inference/go/openai/v1` (IGRIS sends the stable `x-opencode-session` header Go requires)
+- Good coding defaults: `claude-sonnet-5-5` or `gpt-6.1-sol`; cheaper alternatives include `glm-5.3` and `deepseek-v4.1-flash`
+- **Fetch** lists only paid models. OpenCode's free-tier models are restricted to OpenCode and return HTTP 403 from other clients.
+- The Console account must have credits or an active Go plan; otherwise requests fail with a clear insufficient-funds error.
 
 ![IGRIS AI models](docs/images/models.jpg)
 
@@ -128,7 +138,7 @@ The companion is its own native window: frameless, transparent, draggable, and a
                                 │ typed contextBridge API (preload)
 ┌───────────────────────────────┴────────────────────────────────────────────────┐
 │ Electron main process                                                          │
-│  ProviderService → SSE adapters (OpenAI / Anthropic / Gemini / compatible)      │
+│  ProviderService → SSE adapters (OpenAI / Anthropic / Gemini / OpenCode)       │
 │  ChatEngine → streaming runs, cancellation, tool loop                          │
 │  ToolRuntime → permissions, confirmations, risk, timeouts, audit                │
 │  Services → files, terminal, apps, screen, input, browser                       │
@@ -178,8 +188,8 @@ Use **Settings → Privacy & data** to export data, clear conversation and memor
 ### Verification status
 
 - `npm run typecheck` — passing
-- `npm test` — **71 tests passing** across 8 files
-- `npm run test:e2e` — **5 Electron smoke tests passing**
+- `npm test` — **75 tests passing** across 9 files
+- `npm run test:e2e` — **6 Electron smoke tests passing**
 - `npm run test:packaged` — packaged `IGRIS.exe` boots, bridges, and routes
 - `npm run pack` — passing (`release/win-unpacked/IGRIS.exe`)
 - `npm run dist` — passing (`release/IGRIS-1.0.0-x64-Setup.exe`)

@@ -138,7 +138,7 @@ export function Onboarding() {
                 <div>
                   <span>01</span>
                   <strong>Cloud intelligence</strong>
-                  <p>Connect OpenAI, Anthropic, Gemini, or a compatible endpoint. No local models.</p>
+                  <p>Connect OpenAI, Anthropic, Gemini, OpenCode, or a compatible endpoint. No local models.</p>
                 </div>
                 <div>
                   <span>02</span>

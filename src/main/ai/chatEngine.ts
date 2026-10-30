@@ -444,6 +444,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
 
         const turn = await this.streamTurn(active, {
           model: active.provider.model,
+          sessionId: active.conversationId,
           system,
           messages: modelMessages,
           tools,
@@ -710,6 +711,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
     active: ActiveRun,
     request: {
       model: string
+      sessionId?: string
       system: string
       messages: ModelMessage[]
       tools: ModelTool[]

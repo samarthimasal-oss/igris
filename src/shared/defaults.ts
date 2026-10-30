@@ -102,6 +102,21 @@ export const PROVIDER_CATALOG: Record<ProviderKind, ProviderCatalogEntry> = {
     placeholderModel: 'Enter or fetch a Gemini model ID',
     authNote: 'Quotas and billing depend on your Google AI account.'
   },
+  opencode: {
+    kind: 'opencode',
+    label: 'OpenCode Console',
+    shortLabel: 'OpenCode',
+    description:
+      'Claude, GPT, Gemini and open coding models through one OpenCode Console key.',
+    defaultBaseUrl: 'https://opencode.ai/inference/openai/v1',
+    requiresKey: true,
+    allowsCustomBaseUrl: true,
+    modelListSupport: true,
+    toolSupport: 'native',
+    docsUrl: 'https://opencode.ai/v2/docs/console/api/inference/',
+    placeholderModel: 'Enter or fetch an OpenCode model ID',
+    authNote: 'Usage is billed through your OpenCode Console balance or Go plan.'
+  },
   'openai-compatible': {
     kind: 'openai-compatible',
     label: 'OpenAI-compatible endpoint',
@@ -122,6 +137,7 @@ export const PROVIDER_ORDER: ProviderKind[] = [
   'openai',
   'anthropic',
   'gemini',
+  'opencode',
   'openai-compatible'
 ]
 

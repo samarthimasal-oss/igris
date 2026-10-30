@@ -155,7 +155,13 @@ const settingsPatchSchema = z
   })
   .strip()
 
-const providerKindSchema = z.enum(['openai', 'anthropic', 'gemini', 'openai-compatible'])
+const providerKindSchema = z.enum([
+  'openai',
+  'anthropic',
+  'gemini',
+  'opencode',
+  'openai-compatible'
+])
 
 const providerDraftSchema = z
   .object({

@@ -148,6 +148,19 @@ test('rejects insecure provider URLs without persisting anything', async () => {
   expect(pageErrors).toEqual([])
 })
 
+test('offers OpenCode Console with its gateway endpoint', async () => {
+  await page.getByRole('button', { name: 'Add provider', exact: true }).first().click()
+  await page.getByRole('radio', { name: /OpenCode/ }).click()
+
+  await expect(page.locator('#provider-name')).toHaveValue('OpenCode Console')
+  await expect(page.locator('#provider-base')).toHaveValue(
+    'https://opencode.ai/inference/openai/v1'
+  )
+
+  await page.locator('.provider-editor').getByRole('button', { name: 'Close', exact: true }).click()
+  expect(pageErrors).toEqual([])
+})
+
 test('opens the native companion and hides it again', async () => {
   let companion = app.windows().find((candidate) => candidate.url().includes('companion.html'))
   if (!companion) {
