@@ -568,7 +568,7 @@ export function SettingsPage() {
                 <KeyValue label="Provider">{health?.activeProvider ?? 'None'}</KeyValue>
                 <KeyValue label="Database">{health ? formatBytes(health.databaseBytes) : '—'}</KeyValue>
                 <KeyValue label="Companion">{health?.companionOpen ? 'Open' : 'Closed'}</KeyValue>
-                <KeyValue label="Browser">{health?.browserOpen ? 'Open' : 'Closed'}</KeyValue>
+                <KeyValue label="Web browsing">{settings?.permissions.browser ? 'Default browser' : 'Off'}</KeyValue>
                 <KeyValue label="Mode">{system?.isPackaged ? 'Installed build' : 'Development'}</KeyValue>
               </div>
             </div>

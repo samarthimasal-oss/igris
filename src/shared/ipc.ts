@@ -1,7 +1,5 @@
 import type {
   AppInfo,
-  BrowserPageText,
-  BrowserState,
   ChatEvent,
   ChatHandle,
   ChatMessage,
@@ -125,21 +123,6 @@ export interface IpcContract {
   'computer.capture': { input: void; output: ScreenCapture }
   'computer.screenStatus': { input: void; output: ScreenStatus }
 
-  'browser.open': { input: { url?: string }; output: BrowserState }
-  'browser.show': { input: void; output: BrowserState }
-  'browser.close': { input: void; output: OkResult }
-  'browser.navigate': {
-    input: { action: 'back' | 'forward' | 'reload' | 'stop' }
-    output: BrowserState
-  }
-  'browser.state': { input: void; output: BrowserState }
-  'browser.shellReady': { input: void; output: BrowserState }
-  'browser.shellBounds': {
-    input: { x: number; y: number; width: number; height: number }
-    output: OkResult
-  }
-  'browser.shellGo': { input: { value: string }; output: BrowserState }
-
   'tools.list': { input: void; output: ToolInfo[] }
 
   'memories.list': { input: { query?: string } | undefined; output: MemoryItem[] }
@@ -180,10 +163,6 @@ export interface DraftEvent {
 export interface NavigateEvent {
   route: string
   draft?: string
-}
-
-export interface BrowserEvent {
-  state: BrowserState
 }
 
 export interface CompanionEvent {
@@ -274,22 +253,6 @@ export interface IgrisBridge {
     capture: () => Promise<ScreenCapture>
     screenStatus: () => Promise<ScreenStatus>
   }
-  browser: {
-    open: (url?: string) => Promise<BrowserState>
-    show: () => Promise<BrowserState>
-    close: () => Promise<OkResult>
-    navigate: (action: 'back' | 'forward' | 'reload' | 'stop') => Promise<BrowserState>
-    state: () => Promise<BrowserState>
-    shellReady: () => Promise<BrowserState>
-    shellBounds: (bounds: {
-      x: number
-      y: number
-      width: number
-      height: number
-    }) => Promise<OkResult>
-    shellGo: (value: string) => Promise<BrowserState>
-    onEvent: (listener: (event: BrowserEvent) => void) => () => void
-  }
   tools: {
     list: () => Promise<ToolInfo[]>
   }
@@ -329,25 +292,14 @@ export interface IgrisBridge {
 export const IPC_CALL_CHANNEL = 'igris:call'
 export const IPC_CHAT_EVENT = 'igris:chat-event'
 export const IPC_TASK_EVENT = 'igris:task-event'
-export const IPC_BROWSER_EVENT = 'igris:browser-event'
 export const IPC_COMPANION_EVENT = 'igris:companion-event'
 export const IPC_DRAFT_EVENT = 'igris:draft-event'
 export const IPC_NAVIGATE_EVENT = 'igris:navigate-event'
 
-export type WindowRole = 'main' | 'companion' | 'browser' | 'mini'
+export type WindowRole = 'main' | 'companion' | 'mini'
 
 export const ROLE_METHOD_ALLOWLIST: Record<WindowRole, IpcMethod[] | 'all'> = {
   main: 'all',
   companion: ['companion.state', 'companion.openMain', 'companion.ask', 'companion.hide', 'companion.show'],
-  mini: ['mini.restore'],
-  browser: [
-    'browser.shellReady',
-    'browser.shellBounds',
-    'browser.shellGo',
-    'browser.navigate',
-    'browser.state',
-    'system.info',
-    'system.copyText',
-    'system.windowControl'
-  ]
+  mini: ['mini.restore']
 }

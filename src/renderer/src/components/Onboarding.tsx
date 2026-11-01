@@ -224,8 +224,8 @@ export function Onboarding() {
                 })}
               </div>
               <p className="onboarding-hint">
-                Recommended for a first session: read projects and browser automation. You can
-                enable the rest later in Settings.
+                Recommended for a first session: read projects and web browsing. You can enable
+                the rest later in Settings.
               </p>
             </div>
           ) : null}

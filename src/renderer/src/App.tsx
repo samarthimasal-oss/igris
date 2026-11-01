@@ -4,7 +4,6 @@ import {
   Navigate,
   Route,
   Routes,
-  useLocation,
   useNavigate
 } from 'react-router-dom'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
@@ -23,7 +22,6 @@ import { ToolsPage } from './pages/ToolsPage'
 import { ActivityPage } from './pages/ActivityPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
-import { BrowserShell } from './pages/BrowserShell'
 
 function BootScreen() {
   return (
@@ -107,7 +105,6 @@ function MainApp() {
   const bootstrap = useAppStore((state) => state.bootstrap)
   const handleChatEvent = useAppStore((state) => state.handleChatEvent)
   const handleTaskEvent = useAppStore((state) => state.handleTaskEvent)
-  const setBrowser = useAppStore((state) => state.setBrowser)
   const setCompanion = useAppStore((state) => state.setCompanion)
   const setComposerDraft = useAppStore((state) => state.setComposerDraft)
   const newConversation = useAppStore((state) => state.newConversation)
@@ -123,7 +120,6 @@ function MainApp() {
     const unsubscribers = [
       bridge.chat.onEvent((event) => handleChatEvent(event)),
       bridge.tasks.onEvent(() => handleTaskEvent()),
-      bridge.browser.onEvent((event) => setBrowser(event.state)),
       bridge.companion.onEvent((event) => setCompanion(event.state)),
       bridge.events.onDraft((event) => {
         setComposerDraft(event.text)
@@ -144,7 +140,6 @@ function MainApp() {
     handleChatEvent,
     handleTaskEvent,
     navigate,
-    setBrowser,
     setCompanion,
     setComposerDraft
   ])
@@ -222,8 +217,6 @@ function MainApp() {
 }
 
 function Root() {
-  const location = useLocation()
-  if (location.pathname === '/browser') return <BrowserShell />
   return <MainApp />
 }
 

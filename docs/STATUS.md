@@ -15,11 +15,11 @@
 | Persistent history | Complete | SQLite conversations/messages, summaries, search, export |
 | Model management | Complete | Add/edit/test/remove providers, model discovery, default routing |
 | Secure API keys | Complete | Windows DPAPI via `safeStorage`; main-process only; masked DTOs |
-| Permissioned tools | Complete | 8 permissions, 29 tools, risk levels, confirmations, timeouts |
+| Permissioned tools | Complete | 8 permissions, 25 tools, risk levels, confirmations, timeouts |
 | Task/activity tracking | Complete | Tasks, steps, tool runs, approvals, diagnostics |
 | Cancellation | Complete | Abort controllers, pending-approval rejection, shutdown cancellation |
 | Native companion | Complete | Separate transparent always-on-top window, states, quick ask, persistence; mini robot launcher on minimize |
-| Browser assistance | Complete | Sandboxed WebContentsView, toolbar, search, YouTube, read/click/fill |
+| Browser assistance | Complete | Default-browser handoff: open, search, YouTube; no page read/click/fill |
 | Coding/filesystem assistant | Complete | Project scan, tree, editor, search, patch, backups, checkpoints |
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
@@ -49,11 +49,11 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; com
 
 ## Deliberate scope decisions
 
-- **Electron rather than Tauri:** Rust/MSVC toolchains were unavailable; Electron provides native windows, `safeStorage`, `WebContentsView`, and a reliable Windows build with the installed toolchain.
+- **Electron rather than Tauri:** Rust/MSVC toolchains were unavailable; Electron provides native windows, `safeStorage`, and a reliable Windows build with the installed toolchain.
 - **Built-in `node:sqlite`:** avoids a native addon and keeps persistence in the main process.
 - **Cloud only:** no Ollama, local weights, or hidden fallback. The app refuses to answer without a configured provider.
 - **No trading features:** explicitly excluded.
-- **Separate browser window:** browser content is isolated from the main renderer and the companion.
+- **No embedded browser:** web pages open in the Windows default browser (Chrome/Edge). IGRIS cannot read or control those pages, by design.
 - **Unsigned installer:** signing is a distribution decision; no certificate is included.
 
 ## Known limitations
@@ -63,7 +63,7 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; com
 3. **Windows-specific.** Screen capture, DPAPI, Recycle Bin, and native input are implemented for Windows only.
 4. **Terminal allowlist is not a sandbox.** Allowed tools can execute project code (`npm run`, `node -e`, tests, hooks). The permission and confirmations are risk controls, not isolation.
 5. **Input control is experimental.** Coordinate clicks and key presses depend on focus, DPI, and display layout.
-6. **Browser automation is bounded.** It works on the visible IGRIS browser page; it does not control other browsers, bypass auth/CAPTCHA, or guarantee selector stability on complex sites.
+6. **Web tools only hand off URLs.** They cannot read or verify pages in the default browser, bypass auth/CAPTCHA, or observe what the user does with the page.
 7. **Database is not encrypted.** Only provider keys are encrypted; history and backups rely on Windows account ACLs.
 8. **Large files and scans are truncated.** This is intentional to protect context, memory, and latency.
 

@@ -25,7 +25,6 @@ import { AppError, normalizeError, serializeError } from './security/errors'
 import type { SettingsService } from './services/settingsService'
 import type { Logger } from './services/logger'
 import type { ProviderService } from './services/providerService'
-import type { BrowserService } from './services/browserService'
 import type { FileService } from './services/fileService'
 import type { TerminalService } from './services/terminalService'
 import type { AppService } from './services/appService'
@@ -70,7 +69,6 @@ export interface AppContext {
   apps: AppService
   screen: ScreenService
   input: InputService
-  browser: BrowserService
   mainWindow: MainWindowManager
   companion: CompanionManager
   exportBundle: typeof buildExportBundle
@@ -241,17 +239,6 @@ const schemas: Partial<Record<IpcMethod, z.ZodType>> = {
   'files.delete': z.object({ workspaceId: id, path: shortText.max(500) }).strip(),
   'files.reveal': z.object({ workspaceId: id, path: shortText.max(500) }).strip(),
   'computer.launchApp': z.object({ appId: z.string().min(1).max(60) }).strip(),
-  'browser.open': z.object({ url: z.string().max(2000).optional() }).strip().optional(),
-  'browser.navigate': z.object({ action: z.enum(['back', 'forward', 'reload', 'stop']) }).strip(),
-  'browser.shellBounds': z
-    .object({
-      x: z.number().min(0).max(20_000),
-      y: z.number().min(0).max(20_000),
-      width: z.number().min(0).max(20_000),
-      height: z.number().min(0).max(20_000)
-    })
-    .strip(),
-  'browser.shellGo': z.object({ value: z.string().max(2000) }).strip(),
   'memories.list': z.object({ query: z.string().max(200).optional() }).strip().optional(),
   'memories.add': z
     .object({ text: z.string().min(3).max(4000), kind: z.enum(['fact', 'preference', 'instruction']).optional() })
@@ -386,8 +373,7 @@ function healthReport(ctx: AppContext): HealthReport {
     databaseBytes: dbBytes,
     uptimeSeconds,
     pendingTasks: ctx.tasks.pendingCount(),
-    companionOpen: ctx.companion.isOpen(),
-    browserOpen: Boolean(ctx.browser.getWindow())
+    companionOpen: ctx.companion.isOpen()
   }
 }
 
@@ -634,25 +620,6 @@ function buildHandlers(ctx: AppContext): Record<IpcMethod, Handler> {
       return ctx.screen.capture()
     },
     'computer.screenStatus': () => ctx.screen.status(),
-
-    'browser.open': (raw) => {
-      const input = (raw ?? {}) as { url?: string }
-      return ctx.browser.open(input.url ?? 'https://duckduckgo.com/')
-    },
-    'browser.show': () => ctx.browser.show(),
-    'browser.close': () => {
-      ctx.browser.close()
-      return { ok: true }
-    },
-    'browser.navigate': (raw) => ctx.browser.navigate((raw as IpcContract['browser.navigate']['input']).action),
-    'browser.state': () => ctx.browser.state(),
-    'browser.shellReady': () => ctx.browser.shellReady(),
-    'browser.shellBounds': (raw) => {
-      const input = raw as IpcContract['browser.shellBounds']['input']
-      ctx.browser.shellSetBounds(input)
-      return { ok: true }
-    },
-    'browser.shellGo': (raw) => ctx.browser.shellGo((raw as IpcContract['browser.shellGo']['input']).value),
 
     'tools.list': () => ctx.tools.listInfo(),
 

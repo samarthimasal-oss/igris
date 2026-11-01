@@ -32,7 +32,7 @@ import type { ChatMessage } from '@shared/types'
 const SUGGESTIONS = [
   'What can you do with the permissions I have enabled?',
   'Summarize the project I have open and find its biggest risks.',
-  'Open the browser and research something for me.',
+  'Open a web search in my default browser.',
   'Help me plan the next hour with realistic priorities.'
 ]
 

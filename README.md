@@ -2,7 +2,7 @@
 
 **A premium personal AI assistant for Windows.** One calm, three-dimensional surface for asking, researching, writing code, and directing your machine — with every consequential action held behind explicit permission and approval.
 
-IGRIS is a native Electron application with a React interface, real cloud-model streaming, a local SQLite history, a separate always-on-top robot companion, and a permissioned tool runtime for files, terminals, applications, screen capture, and a controlled browser.
+IGRIS is a native Electron application with a React interface, real cloud-model streaming, a local SQLite history, a separate always-on-top robot companion, and a permissioned tool runtime for files, terminals, applications, and screen capture, with web pages handed to your default browser.
 
 ![IGRIS command deck](docs/images/home.jpg)
 
@@ -14,10 +14,10 @@ IGRIS is a native Electron application with a React interface, real cloud-model 
 
 - **Immersive command deck** — obsidian, titanium, and electric-azure design with a procedural 3D core, graceful CSS fallback, and three accent identities.
 - **Genuine streaming chat** — SSE streaming from cloud providers, persistent conversations, cancellation, usage metadata, and provider-aware error messages.
-- **29 permissioned tools** — project inspection, file read/search/write/patch, checkpoints, allowlisted terminal commands, app launch, screen capture, native input, browser control, YouTube assistance, and memory.
+- **25 permissioned tools** — project inspection, file read/search/write/patch, checkpoints, allowlisted terminal commands, app launch, screen capture, native input, default-browser handoff, and memory.
 - **Approval by design** — sensitive tools require a granted capability *and* a per-call confirmation. High-risk tools are marked, logged, and time-limited.
 - **A separate companion** — a frameless, transparent, movable robot window that stays above other applications, accepts quick asks, and reflects live assistant state.
-- **Native browser surface** — a sandboxed `WebContentsView` in its own window with an IGRIS toolbar, downloads blocked, permissions denied, and navigation constrained to HTTP(S).
+- **Hands off your browser** — web pages open in Chrome, Edge, or whatever Windows uses. IGRIS never embeds a browser and cannot read, click, or fill those pages.
 - **Local-first persistence** — conversations, tasks, tool runs, memories, logs, and settings live in a local SQLite database.
 - **Windows DPAPI credentials** — provider keys are encrypted with Electron `safeStorage`, used only in the privileged main process, and never sent back to the interface.
 - **Auditable activity** — every task, step, tool call, approval, and result appears in Activity, with diagnostic export.
@@ -106,7 +106,7 @@ Every capability is off by default. Enable only what you need in **Settings → 
 | Coding agent actions | Checkpoints and project test runs | Off |
 | Run terminal commands | Allowlisted development commands inside a project | Off |
 | Launch applications | Start apps from a fixed, verified list | Off |
-| Browser automation | Open, read, click, fill, YouTube search/control | Off |
+| Web browsing | Open pages, searches, and YouTube in your default browser | Off |
 | Screen access | Capture the primary display on explicit request | Off |
 | Keyboard and mouse control | Type, press keys, click coordinates (experimental) | Off |
 
@@ -121,7 +121,7 @@ Sensitive actions still require a per-call confirmation by default (`Settings �
 | Code & terminal | `create_checkpoint`, `run_command`, `run_tests` |
 | Applications | `list_apps`, `launch_app`, `list_windows` |
 | Screen & input | `capture_screen`, `type_text`, `press_keys`, `click_at` |
-| Browser | `browser_open`, `browser_search`, `youtube_search`, `browser_read`, `browser_click`, `browser_fill`, `youtube_control` |
+| Browser | `browser_open`, `browser_search`, `youtube_search` (hand URLs to the system browser) |
 | Memory & system | `save_memory`, `search_memories`, `current_time` |
 
 The model never receives a raw shell. It receives typed tool schemas; the main process validates arguments, checks permissions, applies risk policy, requests approval when needed, enforces timeouts and output caps, and records the run.
@@ -154,7 +154,7 @@ Minimizing the workspace leaves a compact robot bubble on the desktop. Drag it o
 │  OpenRouter / OpenCode) · streaming, tool calls, discovery                     │
 │  ChatEngine → streaming runs, cancellation, tool loop                          │
 │  ToolRuntime → permissions, confirmations, risk, timeouts, audit                │
-│  Services → files, terminal, apps, screen, input, browser                       │
+│  Services → files, terminal, apps, screen, input, web handoff                   │
 │  Storage → node:sqlite repositories · CredentialStore (DPAPI) · Logger          │
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -220,7 +220,7 @@ src/
   main/          Electron main process
     ai/          provider adapters, SSE, HTTP, chat engine
     security/    credentials, path guard, command policy, redaction, errors
-    services/    files, terminal, apps, screen, input, browser, provider, settings
+    services/    files, terminal, apps, screen, input, web handoff, provider, settings
     storage/     SQLite database and repositories
     tasks/       task state and orchestration
     tools/       tool registry and runtime
@@ -248,7 +248,7 @@ The security model is documented in [docs/SECURITY.md](docs/SECURITY.md). In bri
 - The renderer never receives a stored key; the bridge returns masked hints only.
 - All filesystem access is confined to explicitly approved workspaces with lexical and real-path checks.
 - Terminal commands are parsed without a shell, checked against an executable allowlist, and blocked for destructive git/npm operations.
-- Browser content runs in a dedicated sandboxed session; permissions and downloads are denied by default.
+- Web tools open Chrome/Edge (the system default) and stop there; IGRIS cannot read, click, or fill pages in it.
 - Logs and diagnostic exports redact common credential patterns.
 - High-risk actions require confirmation and are recorded in Activity.
 
@@ -262,7 +262,7 @@ Please do not open a public issue containing an API key, personal path, or conve
 - **Cloud keys required.** There is no bundled model, no offline inference, and no local fallback.
 - **Unsigned installer.** Code signing is intentionally left to the distributor.
 - **Input control is experimental.** Screen capture and synthetic input depend on display configuration and app focus; verify before use.
-- **Browser automation sees the visible IGRIS browser page.** It does not automate other browsers or bypass site authentication, CAPTCHAs, or anti-bot controls.
+- **Web tools only hand off URLs.** IGRIS cannot see, read, or control the default browser, so it cannot bypass site authentication, CAPTCHAs, or anti-bot controls.
 - **Live provider behavior varies.** Model IDs, tool-calling support, quotas, and rate limits are controlled by the provider.
 
 ## License

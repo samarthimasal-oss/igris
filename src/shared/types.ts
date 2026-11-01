@@ -95,7 +95,6 @@ export interface HealthReport {
   uptimeSeconds: number
   pendingTasks: number
   companionOpen: boolean
-  browserOpen: boolean
 }
 
 // ---------------------------------------------------------------- providers
@@ -410,23 +409,6 @@ export interface ScreenCapture {
   width: number
   height: number
   capturedAt: string
-}
-
-export interface BrowserState {
-  open: boolean
-  visible: boolean
-  url: string
-  title: string
-  loading: boolean
-  canGoBack: boolean
-  canGoForward: boolean
-}
-
-export interface BrowserPageText {
-  url: string
-  title: string
-  text: string
-  truncated: boolean
 }
 
 // ------------------------------------------------------------------ memory

@@ -55,8 +55,6 @@ const APP_ICONS: Record<string, typeof FileText> = {
 export function ComputerPage() {
   const navigate = useNavigate()
   const settings = useAppStore((state) => state.settings)
-  const browser = useAppStore((state) => state.browser)
-  const refreshBrowser = useAppStore((state) => state.refreshBrowser)
   const notify = useAppStore((state) => state.notify)
   const [tab, setTab] = useState<ComputerTab>('overview')
   const [screenStatus, setScreenStatus] = useState<ScreenStatus | null>(null)
@@ -155,16 +153,11 @@ export function ComputerPage() {
   }
 
   const openBrowser = async (): Promise<void> => {
-    if (!canBrowser) {
-      notify('warning', 'Browser automation is disabled', 'Enable it in Settings → Permissions.')
-      return
-    }
     try {
-      await window.igris.browser.show()
-      await refreshBrowser()
-      notify('info', 'IGRIS Browser is open', 'Use the companion window to browse while you work.')
+      await window.igris.system.openExternal('https://duckduckgo.com/')
+      notify('info', 'Default browser opened', 'IGRIS hands web pages to Chrome, Edge, or whatever Windows uses.')
     } catch (error) {
-      notify('error', 'Could not open the browser', `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim())
+      notify('error', 'Could not open your browser', `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim())
     }
   }
 
@@ -311,17 +304,17 @@ export function ComputerPage() {
                     <Globe2 size={16} />
                   </span>
                   <div>
-                    <strong>IGRIS Browser</strong>
-                    <p>{browser?.open ? browser.title || browser.url || 'Open' : 'Not running'}</p>
+                    <strong>Default browser</strong>
+                    <p>Web pages open in Chrome, Edge, or whatever Windows uses</p>
                   </div>
-                  <Badge tone={browser?.open ? 'success' : 'neutral'} dot>
-                    {browser?.open ? 'Open' : 'Closed'}
+                  <Badge tone={canBrowser ? 'success' : 'neutral'} dot>
+                    {canBrowser ? 'Allowed' : 'Off'}
                   </Badge>
                 </div>
                 <div className="browser-status-foot">
-                  <span>{canBrowser ? 'Automation permitted' : 'Automation disabled'}</span>
+                  <span>IGRIS cannot read or control those pages</span>
                   <Button variant="default" size="sm" onClick={() => void openBrowser()}>
-                    {browser?.open ? 'Focus browser' : 'Open browser'}
+                    Open browser
                   </Button>
                 </div>
               </Card>
@@ -356,9 +349,9 @@ export function ComputerPage() {
                   <small>{screenStatus?.detail ?? '—'}</small>
                 </div>
                 <div>
-                  <span>Browser process</span>
-                  <strong>{browser?.open ? 'Running' : 'Stopped'}</strong>
-                  <small>{browser?.open ? browser.url : 'No page loaded'}</small>
+                  <span>Default browser</span>
+                  <strong>{canBrowser ? 'Handoff allowed' : 'Locked'}</strong>
+                  <small>IGRIS never reads those pages</small>
                 </div>
                 <div>
                   <span>Approved apps</span>

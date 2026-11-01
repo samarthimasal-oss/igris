@@ -1,13 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
-  IPC_BROWSER_EVENT,
   IPC_CALL_CHANNEL,
   IPC_CHAT_EVENT,
   IPC_COMPANION_EVENT,
   IPC_DRAFT_EVENT,
   IPC_NAVIGATE_EVENT,
   IPC_TASK_EVENT,
-  type BrowserEvent,
   type CompanionEvent,
   type DraftEvent,
   type IgrisBridge,
@@ -17,8 +15,6 @@ import {
 } from '@shared/ipc'
 import type {
   AppInfo,
-  BrowserPageText,
-  BrowserState,
   ChatEvent,
   ChatHandle,
   ChatMessage,
@@ -177,17 +173,6 @@ const bridge: IgrisBridge = {
     capture: () => invoke('computer.capture'),
     screenStatus: () => invoke('computer.screenStatus')
   },
-  browser: {
-    open: (url?: string) => invoke('browser.open', url === undefined ? undefined : { url }),
-    show: () => invoke('browser.show'),
-    close: () => invoke('browser.close'),
-    navigate: (action) => invoke('browser.navigate', { action }),
-    state: () => invoke('browser.state'),
-    shellReady: () => invoke('browser.shellReady'),
-    shellBounds: (bounds) => invoke('browser.shellBounds', bounds),
-    shellGo: (value: string) => invoke('browser.shellGo', { value }),
-    onEvent: (listener: (event: BrowserEvent) => void) => subscribe(IPC_BROWSER_EVENT, listener)
-  },
   tools: {
     list: () => invoke('tools.list')
   },
@@ -251,8 +236,6 @@ export type PreloadSurfaces = {
   window: WindowInfo
   capture: ScreenCapture
   screen: ScreenStatus
-  browser: BrowserState
-  page: BrowserPageText
   tool: ToolInfo
   memory: MemoryItem
   log: LogEntry

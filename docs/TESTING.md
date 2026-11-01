@@ -207,7 +207,7 @@ Before releasing a build:
 - [ ] Deny a confirmation → tool run is marked denied, no side effect.
 - [ ] Let a confirmation expire → run fails safely.
 - [ ] Screen capture with permission → file appears in `data/screenshots`.
-- [ ] Browser: open, read, click, fill, YouTube search; downloads and permissions are denied.
+- [ ] Browser: open a page, web search, and YouTube search all open in the default browser; IGRIS reports it cannot read or control the page.
 
 ### Windows behavior
 

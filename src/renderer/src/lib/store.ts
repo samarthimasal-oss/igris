@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import type {
-  BrowserState,
   ChatEvent,
   ChatMessage,
   ChatSendInput,
@@ -69,7 +68,6 @@ interface AppStore {
   system: SystemInfo | null
   health: HealthReport | null
   companion: CompanionState | null
-  browser: BrowserState | null
   tools: ToolInfo[]
   workspaces: Workspace[]
   tasks: Task[]
@@ -95,7 +93,6 @@ interface AppStore {
   refreshWorkspaces: () => Promise<void>
   refreshHealth: () => Promise<void>
   refreshCompanion: () => Promise<void>
-  refreshBrowser: () => Promise<void>
   updateSettings: (patch: DeepPartial<Settings>) => Promise<Settings>
   completeOnboarding: () => Promise<void>
   openOnboarding: () => void
@@ -117,7 +114,6 @@ interface AppStore {
   consumeFocus: () => string | null
   setPreferredProvider: (id: string | null) => void
   setPreferredWorkspace: (id: string | null) => void
-  setBrowser: (state: BrowserState) => void
   setCompanion: (state: CompanionState) => void
 }
 
@@ -142,7 +138,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   system: null,
   health: null,
   companion: null,
-  browser: null,
   tools: [],
   workspaces: [],
   tasks: [],
@@ -170,14 +165,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ booting: true, bootError: null })
     bootPromise = (async () => {
       try {
-        const [settings, providers, system, health, companion, browser, tools, workspaces, conversations, tasks] =
+        const [settings, providers, system, health, companion, tools, workspaces, conversations, tasks] =
           await Promise.all([
             bridge.settings.get(),
             bridge.providers.list(),
             bridge.system.info(),
             bridge.system.health(),
             bridge.companion.state(),
-            bridge.browser.state(),
             bridge.tools.list(),
             bridge.projects.list(),
             bridge.conversations.list(),
@@ -192,7 +186,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
           system,
           health,
           companion,
-          browser,
           tools,
           workspaces,
           conversations,
@@ -291,16 +284,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ companion: await bridge.companion.state() })
     } catch {
       // The companion may be disabled.
-    }
-  },
-
-  refreshBrowser: async () => {
-    const bridge = api()
-    if (!bridge) return
-    try {
-      set({ browser: await bridge.browser.state() })
-    } catch {
-      // The browser is optional.
     }
   },
 
@@ -683,7 +666,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   setPreferredProvider: (id) => set({ preferredProviderId: id }),
   setPreferredWorkspace: (id) => set({ preferredWorkspaceId: id }),
-  setBrowser: (state) => set({ browser: state }),
   setCompanion: (state) => set({ companion: state })
 }))
 

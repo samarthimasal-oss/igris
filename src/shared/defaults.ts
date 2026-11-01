@@ -187,8 +187,9 @@ export const PERMISSION_META: Record<
     sensitive: true
   },
   browser: {
-    label: 'Browser automation',
-    description: 'Let the assistant open pages, read visible text and interact with the IGRIS browser.',
+    label: 'Web browsing',
+    description:
+      'Let the assistant open pages and searches in your default browser. IGRIS cannot read or control Chrome or Edge.',
     sensitive: true
   },
   screen: {

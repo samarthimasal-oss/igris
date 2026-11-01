@@ -10,13 +10,13 @@ IGRIS is a local desktop agent, not a sandbox. Its security goal is to make powe
 | Preload | Narrow, audited bridge | Invoke one IPC channel; no raw `ipcRenderer` |
 | Main process | Trusted | Files, processes, SQLite, DPAPI, network, windows |
 | Provider responses | Untrusted | Parsed as data; never executed |
-| Web pages in IGRIS Browser | Untrusted | Sandboxed page view, no Node, no downloads, no permissions |
+| Pages opened in your default browser | Untouched | IGRIS only builds the URL; it cannot read or control the page |
 | Tool arguments | Untrusted | Zod-validated, permission-checked, policy-checked, confirmed |
 | Local user | Trusted administrator | Can grant capabilities, approve actions, read local data |
 
 ## Renderer isolation
 
-- `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webSecurity: true` for the main, companion, mini-launcher, and browser-shell windows.
+- `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webSecurity: true` for the main, companion, and mini-launcher windows.
 - The renderer has no direct Node, filesystem, shell, database, or secret access.
 - Production responses receive:
 
@@ -36,13 +36,13 @@ IGRIS is a local desktop agent, not a sandbox. Its security goal is to make powe
 
 Every renderer call goes through `igris:call` and is:
 
-1. matched to a known `webContents` role (`main`, `companion`, `browser`, `mini`);
+1. matched to a known `webContents` role (`main`, `companion`, `mini`);
 2. checked against a per-role method allowlist;
 3. validated by a Zod schema (size, type, enum, numeric range);
 4. executed against services in the main process;
 5. returned as a typed envelope with sanitized errors.
 
-The companion cannot invoke chat, providers, files, terminal, or settings. The browser shell cannot invoke application services. The minimized launcher may only restore the main window.
+The companion cannot invoke chat, providers, files, terminal, or settings. The minimized launcher may only restore the main window.
 
 ## Credential handling
 
@@ -111,18 +111,16 @@ Risk levels are raised for dependency installs, `npx`, package scripts, and git 
 
 - Screen capture is explicit, permissioned, and saves only to the app's data directory.
 - Input control (typing, key presses, coordinate clicks) is experimental and off by default.
-- Neither service can be invoked by the companion or browser shell.
+- Neither service can be invoked by the companion or the mini launcher.
 - Captured screenshots can contain sensitive information and are not automatically redacted. Delete them when no longer needed.
 
-## Browser isolation
+## Default-browser handoff
 
-- The controlled page runs in a separate persistent session/partition with `sandbox: true`, `contextIsolation: true`, no Node, and no preload.
-- Permission requests are denied; downloads are blocked; popups are denied unless re-opened as validated HTTP(S) in the same view.
+- IGRIS does not embed a browser. `browser_open`, `browser_search`, and `youtube_search` only validate a URL and pass it to `shell.openExternal`.
 - Only HTTP and HTTPS URLs are accepted; credentials embedded in URLs are rejected.
-- Navigation initiated by page content is restricted to HTTP(S); `will-navigate` checks are applied.
-- The browser toolbar is local UI; the page cannot access the bridge.
+- IGRIS has no view of Chrome or Edge: it cannot read page text, click, fill forms, control playback, or verify what the page did.
 
-**Caveat:** web pages are still remote code. IGRIS Browser does not provide anonymity, ad blocking, anti-tracking, or protection from phishing. Browser automation can click real buttons, submit forms, post content, or make purchases if you approve it. Never approve browser actions on a site you do not trust.
+**Caveat:** without page access, IGRIS cannot verify anything. It cannot confirm a page loaded, that a search succeeded, or that nothing was submitted. Ask the user to confirm anything important, and never assume a page matches what the model predicted.
 
 ## Logging and redaction
 
@@ -139,10 +137,10 @@ Risk levels are raised for dependency installs, `npx`, package scripts, and git 
 IGRIS makes network requests only to:
 
 - the provider base URL you configure (HTTPS; HTTP only for localhost);
-- pages you open in IGRIS Browser;
+- pages opened by `shell.openExternal` in your default browser, requested but never observed by IGRIS;
 - provider documentation/model-list endpoints for the provider you select.
 
-There is no IGRIS backend, account system, update service, or telemetry endpoint. DNS and TLS are handled by Electron/Chromium. A compromised provider or page can observe what you send to it; that is outside IGRIS's control.
+There is no IGRIS backend, account system, update service, or telemetry endpoint. DNS and TLS are handled by Electron/Chromium. A compromised provider can observe what you send to it; that is outside IGRIS's control.
 
 ## Local data protection
 

@@ -5,18 +5,16 @@ import {
   Menu,
   nativeImage,
   session,
-  Tray,
-  type BrowserWindow
+  Tray
 } from 'electron'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  IPC_BROWSER_EVENT,
   IPC_CHAT_EVENT,
   IPC_COMPANION_EVENT,
   IPC_TASK_EVENT
 } from '@shared/ipc'
-import type { BrowserState, ChatEvent, Settings } from '@shared/types'
+import type { ChatEvent, Settings } from '@shared/types'
 import { Database } from './storage/database'
 import {
   ConversationRepository,
@@ -56,7 +54,6 @@ let tray: Tray | null = null
 let mainWindow: MainWindowManager | null = null
 let companion: CompanionManager | null = null
 let miniLauncher: MiniLauncherManager | null = null
-let browser: BrowserService | null = null
 let chat: ChatEngine | null = null
 let settingsService: SettingsService | null = null
 let conversations: ConversationRepository | null = null
@@ -117,7 +114,6 @@ async function start(): Promise<void> {
       companion?.setQuitting(true)
       miniLauncher?.setQuitting(true)
       chat?.cancelAll('shutdown')
-      browser?.dispose()
       miniLauncher?.close()
       companion?.close()
     } catch {
@@ -173,7 +169,7 @@ async function boot(): Promise<void> {
   logger = appLogger
   const credentials = new CredentialStore()
   const providers = new ProviderService(providerRepo, credentials, appLogger)
-  const roles = new Map<number, 'main' | 'companion' | 'browser'>()
+  const roles = new Map<number, 'main' | 'companion' | 'mini'>()
 
   const main = new MainWindowManager(roles, settings, appLogger)
   mainWindow = main
@@ -189,24 +185,7 @@ async function boot(): Promise<void> {
     else mini.hide()
   })
 
-  let browserServiceRef: BrowserService | null = null
-  const emitBrowserState = (state: BrowserState): void => {
-    main.send(IPC_BROWSER_EVENT, { state })
-    const win = browserServiceRef?.getWindow()
-    if (win && !win.isDestroyed()) {
-      win.webContents.send(IPC_BROWSER_EVENT, { state })
-    }
-  }
-  const browserService = new BrowserService(
-    appLogger,
-    (win: BrowserWindow) => {
-      roles.set(win.webContents.id, 'browser')
-      win.on('closed', () => roles.delete(win.webContents.id))
-    },
-    emitBrowserState
-  )
-  browserServiceRef = browserService
-  browser = browserService
+  const browserService = new BrowserService(appLogger)
 
   const files = new FileService(workspaceRepo, backupsDir)
   const terminal = new TerminalService(workspaceRepo, appLogger)
@@ -277,7 +256,6 @@ async function boot(): Promise<void> {
     apps,
     screen,
     input,
-    browser: browserService,
     mainWindow: main,
     companion: companionManager,
     exportBundle: buildExportBundle

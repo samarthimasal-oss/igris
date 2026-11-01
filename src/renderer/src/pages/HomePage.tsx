@@ -25,7 +25,7 @@ import clsx from 'clsx'
 const QUICK_PROMPTS = [
   { icon: Sparkles, label: 'Plan my day', prompt: 'Help me plan my day. Ask me what is on my plate, then propose a realistic sequence.' },
   { icon: FolderKanban, label: 'Review a project', prompt: 'Review the project I have open. Read its structure, identify risks, and propose the first three improvements.' },
-  { icon: Globe2, label: 'Research the web', prompt: 'Open IGRIS Browser, research the topic I give you, and summarize the strongest sources.' },
+  { icon: Globe2, label: 'Search the web', prompt: 'Open a DuckDuckGo search in my default browser for the topic I give you.' },
   { icon: Terminal, label: 'Run a command', prompt: 'Run the test suite for my current project and explain any failures.' }
 ]
 

@@ -4,7 +4,7 @@ IGRIS is a Windows desktop application built on Electron. It deliberately keeps 
 
 ## Design goals
 
-1. **Real capability, no theatre.** Chat is streaming provider I/O. Tools perform real filesystem, terminal, browser, screen, and input operations. There is no simulated assistant fallback.
+1. **Real capability, no theatre.** Chat is streaming provider I/O. Tools perform real filesystem, terminal, screen, and input operations, and web tools hand URLs to the system browser. There is no simulated assistant fallback.
 2. **Least privilege.** Renderer sandboxing, a narrow IPC surface, default-off permissions, per-call approvals, and path/command allowlists.
 3. **Local ownership.** SQLite history, local backups, local screen captures, and DPAPI-encrypted credentials.
 4. **Calm, premium surface.** A single design system, a procedural 3D core, responsive layouts, reduced-motion support, and a separate companion window.
@@ -16,14 +16,13 @@ IGRIS is a Windows desktop application built on Electron. It deliberately keeps 
 main process
 ├── MainWindow          frameless 1440×920 shell, all pages, custom titlebar
 ├── CompanionWindow     frameless transparent 280×340 always-on-top robot
-├── BrowserWindow       frameless 1280×820 IGRIS browser shell
-│   └── WebContentsView sandboxed page surface on a persistent partition
+├── MiniLauncher        112×112 transparent bubble shown on minimize
 └── Tray                background residency and quick actions
 ```
 
 - All windows use `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`.
 - A `Map<webContents.id, WindowRole>` assigns every window a role. The IPC dispatcher checks the methods allowed for that role.
-- The main window may call every method. The companion may only read/show itself, hide, ask, and open the main window. The browser shell may only manage its own surface.
+- The main window may call every method. The companion may only read/show itself, hide, ask, and open the main window, and the mini launcher may only restore the main window.
 - The companion is restored to a clamped on-screen position, saves moves after a short debounce, and hides instead of closing.
 - A 112x112 transparent, always-on-top robot bubble appears when the main window is minimized. It is draggable, restores the workspace on click, and hides when the main window returns.
 - The application is single-instance and tray-resident. Shutdown cancels active chat runs, closes windows, optionally clears history, and closes SQLite cleanly.
@@ -35,10 +34,10 @@ main process
 1. Set the app name, optional test/user-data override, and request the single-instance lock.
 2. Wait for Electron readiness; apply the Content Security Policy and deny default session permissions.
 3. Create the data directories and open `data/igris.db`.
-4. Construct repositories, settings, logger, credential store, provider service, window managers, browser, services, tasks, tools, chat, and IPC.
+4. Construct repositories, settings, logger, credential store, provider service, window managers, services, tasks, tools, chat, and IPC.
 5. Mark unfinished tasks as interrupted, apply retention policy, and register the settings listener.
 6. Show the main window, create the tray, and restore the companion if enabled.
-7. Register shutdown hooks: cancel runs, dispose the browser, close the DB, quit.
+7. Register shutdown hooks: cancel runs, close windows, close the DB, quit.
 
 ## Renderer
 
@@ -48,7 +47,7 @@ main process
 - If WebGL is unavailable, the component renders a static CSS core instead of failing the page.
 - The companion is a separate HTML entry and React root, styled by `companion.css`.
 - The minimized launcher is a separate HTML entry (`mini.html`) and React root, styled by `mini.css`.
-- The browser shell is a local React toolbar; the actual page is a main-process `WebContentsView` whose bounds the shell reports over IPC.
+- Web pages are never rendered inside the app; the assistant's web tools target the Windows default browser.
 
 ## IPC boundary
 
@@ -58,7 +57,7 @@ The shared contract lives in `src/shared/ipc.ts`.
 - One response envelope: `{ ok, data }` or `{ ok: false, error: { code, message, retryable } }`.
 - Every method has a Zod schema in `src/main/ipc.ts`; oversized, malformed, or unknown payloads never reach services.
 - The dispatcher verifies the sender is a known `webContents` role and that the method is in that role's allowlist.
-- Event channels push chat deltas, task changes, browser state, companion state, drafts, and navigation without letting the renderer invoke privileged code.
+- Event channels push chat deltas, task changes, companion state, drafts, and navigation without letting the renderer invoke privileged code.
 - The preload exposes a typed `window.igris` object with namespaced methods; no raw `ipcRenderer` is exposed.
 
 This boundary is the reason renderer code can be rich without becoming a security hole.
@@ -103,7 +102,7 @@ Runs have an `AbortController`, a global deadline, cancellation on app shutdown,
 
 ## Tools
 
-`src/main/tools/registry.ts` defines 29 tools with Zod argument schemas, human titles, categories, risk levels, permission keys, confirmation flags, timeouts, and handlers. Handlers receive resolved services and a signal.
+`src/main/tools/registry.ts` defines 25 tools with Zod argument schemas, human titles, categories, risk levels, permission keys, confirmation flags, timeouts, and handlers. Handlers receive resolved services and a signal.
 
 `src/main/tools/toolRuntime.ts` is the gatekeeper:
 
@@ -141,16 +140,14 @@ Repositories keep SQL in one place and return shared DTOs. The renderer never ta
 - **ScreenService** captures the primary display to the app's screenshot directory only after permission.
 - **InputService** provides synthetic text/keys/clicks behind the experimental input permission.
 
-## Browser
+## Web handoff
 
-`BrowserService` creates one controlled browser window with a sandboxed `WebContentsView` on a dedicated persistent session.
+`BrowserService` deliberately embeds no browser. Web tools validate a URL and pass it to Windows' default browser.
 
-- Only HTTP(S) navigation is accepted.
-- Popups are denied and optionally loaded in the controlled view after validation.
-- Permission requests and downloads are denied.
-- The local shell reports its toolbar bounds; the main process keeps the page view aligned.
-- Read/click/fill tools operate on the visible page text and DOM without exposing Node APIs.
-- The browser session is separate from the app session.
+- Only HTTP(S) URLs are accepted; credentials embedded in URLs are rejected.
+- `browser_open`, `browser_search`, and `youtube_search` construct the page URL and call `shell.openExternal`.
+- The assistant cannot read the page, click elements, fill forms, or control playback afterward.
+- What the user does with the page stays entirely inside their own browser and its profile.
 
 ## Error model
 
@@ -166,6 +163,6 @@ Repositories keep SQL in one place and return shared DTOs. The renderer never ta
 ## Known architectural limits
 
 - Windows-specific native paths (safeStorage, Recycle Bin, screen/input) are not abstracted for macOS/Linux.
-- Browser page extraction is best-effort and bounded; complex SPAs may need explicit selectors.
+- Web tools cannot inspect or verify what the default browser did with a page.
 - Large files are truncated rather than streamed.
 - No plugin marketplace or third-party tool execution.
