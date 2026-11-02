@@ -1,4 +1,4 @@
-import type { ProviderKind, ToolCall } from '@shared/types'
+import type { ProviderKind, ToolCall, ToolImage } from '@shared/types'
 
 export interface ModelTool {
   name: string
@@ -12,6 +12,8 @@ export interface ModelMessage {
   toolCalls?: ToolCall[]
   toolCallId?: string
   toolName?: string
+  /** Images attached to tool results (same run only — never persisted). */
+  images?: ToolImage[]
 }
 
 export interface ProviderRuntimeConfig {

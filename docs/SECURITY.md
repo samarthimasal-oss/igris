@@ -16,7 +16,7 @@ IGRIS is a local desktop agent, not a sandbox. Its security goal is to make powe
 
 ## Renderer isolation
 
-- `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webSecurity: true` for the main, companion, and mini-launcher windows.
+- `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webSecurity: true` for the main and mini-launcher windows.
 - The renderer has no direct Node, filesystem, shell, database, or secret access.
 - Production responses receive:
 
@@ -36,13 +36,13 @@ IGRIS is a local desktop agent, not a sandbox. Its security goal is to make powe
 
 Every renderer call goes through `igris:call` and is:
 
-1. matched to a known `webContents` role (`main`, `companion`, `mini`);
+1. matched to a known `webContents` role (`main`, `mini`);
 2. checked against a per-role method allowlist;
 3. validated by a Zod schema (size, type, enum, numeric range);
 4. executed against services in the main process;
 5. returned as a typed envelope with sanitized errors.
 
-The companion cannot invoke chat, providers, files, terminal, or settings. The minimized launcher may only restore the main window.
+The minimized launcher may only restore the main window.
 
 ## Credential handling
 
@@ -60,7 +60,7 @@ The companion cannot invoke chat, providers, files, terminal, or settings. The m
 
 Eight capabilities are **off by default**:
 
-`filesystem`, `fileWrite`, `projectWrite`, `terminal`, `appLaunch`, `browser`, `screen`, `inputControl`.
+`filesystem`, `fileWrite`, `projectWrite`, `terminal`, `appLaunch`, `browser`, `screen`, `voice`.
 
 A tool may run only when:
 
@@ -107,11 +107,11 @@ Risk levels are raised for dependency installs, `npx`, package scripts, and git 
 
 **Caveat:** an allowlist is risk reduction, not a sandbox. Allowed tools can still execute arbitrary code: `node -e`, `npm run <script>`, test runners loading project config, `git` hooks, compilers, and package install scripts. Only enable the terminal permission for repositories you trust, and keep per-call confirmation on.
 
-## Screen and input
+## Screen and voice
 
-- Screen capture is explicit, permissioned, and saves only to the app's data directory.
-- Input control (typing, key presses, coordinate clicks) is experimental and off by default.
-- Neither service can be invoked by the companion or the mini launcher.
+- Screen vision is explicit, permissioned, and saves only to the app's data directory.
+- Voice input (microphone transcription via your cloud provider) is gated by the `voice` permission and off by default.
+- Neither capability can be invoked by the minimized launcher; both require the main window.
 - Captured screenshots can contain sensitive information and are not automatically redacted. Delete them when no longer needed.
 
 ## Default-browser handoff

@@ -11,10 +11,18 @@ import type {
   ProviderTestOutcome
 } from '../types'
 
+type AnthropicMedia = { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+
 type AnthropicBlock =
   | { type: 'text'; text: string }
+  | AnthropicMedia
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
-  | { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean }
+  | {
+      type: 'tool_result'
+      tool_use_id: string
+      content: Array<{ type: 'text'; text: string } | AnthropicMedia>
+      is_error?: boolean
+    }
 
 interface AnthropicMessage {
   role: 'user' | 'assistant'
@@ -52,10 +60,20 @@ function mapMessages(messages: ModelMessage[]): AnthropicMessage[] {
     let role: 'user' | 'assistant' = message.role === 'assistant' ? 'assistant' : 'user'
     const blocks: AnthropicBlock[] = []
     if (message.role === 'tool') {
+      const toolContent: Array<{ type: 'text'; text: string } | AnthropicMedia> = [
+        { type: 'text', text: message.content || '(no output)' }
+      ]
+      const visible = (message.images ?? []).filter((image) => image.mimeType && image.data)
+      for (const image of visible) {
+        toolContent.push({
+          type: 'image',
+          source: { type: 'base64', media_type: image.mimeType, data: image.data }
+        })
+      }
       blocks.push({
         type: 'tool_result',
         tool_use_id: message.toolCallId ?? 'unknown',
-        content: message.content || '(no output)'
+        content: toolContent
       })
     } else if (message.role === 'assistant') {
       if (message.content) blocks.push({ type: 'text', text: message.content })

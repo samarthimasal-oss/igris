@@ -67,6 +67,23 @@ function mapMessages(request: ModelRequest): unknown[] {
         tool_call_id: message.toolCallId,
         content: message.content || '(no output)'
       })
+      // OpenAI takes images as a follow-up user message after the tool result.
+      const visible = (message.images ?? []).filter((image) => image.mimeType && image.data)
+      if (visible.length) {
+        messages.push({
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `[IGRIS: Image(s) attached to the "${message.toolName ?? 'tool'}" result above — read them as part of your answer.]`
+            },
+            ...visible.map((image) => ({
+              type: 'image_url',
+              image_url: { url: `data:${image.mimeType};base64,${image.data}` }
+            }))
+          ]
+        })
+      }
       continue
     }
     if (message.role === 'assistant') {

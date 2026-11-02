@@ -28,7 +28,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
 | `npm test` | **79 passing**, 10 files, ~1 s |
-| `npm run test:e2e` | **8 passing**, 1 worker, ~8 s |
+| `npm run test:e2e` | **7 passing**, 1 worker, ~8 s |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
 | `npm run dist` | Pass; `release/IGRIS-1.0.0-x64-Setup.exe` |
@@ -137,8 +137,7 @@ Coverage:
 4. **Provider validation** — the form rejects a plain-HTTP non-local URL, shows the main-process error, and persists zero providers.
 5. **OpenCode preset** — selecting OpenCode fills the gateway endpoint.
 6. **OpenRouter preset** — selecting OpenRouter Free fills the locked endpoint and shows the free-only notice.
-7. **Companion** - locates the auto-created companion window, verifies its ask input and hide control, and confirms the native window becomes hidden.
-8. **Minimize launcher** - minimizes the workspace, verifies the robot bubble opens, clicks it, and confirms the main window is restored and the bubble hides.
+7. **Minimize launcher** - minimizes the workspace, verifies the robot bubble opens, clicks it, and confirms the main window is restored and the bubble hides.
 
 The test profile is removed after the run. Playwright traces are retained on failure under `test-results/`.
 
@@ -162,7 +161,7 @@ It verifies that the ASAR bundle includes the preload and renderer, that `node:s
 
 ## Visual QA
 
-`npm run visual` builds the production renderer, launches Electron, dismisses onboarding, visits every route, captures `screenshots/*.png`, opens the companion, minimizes into the robot launcher, and audits document width and the `window.igris` bridge.
+`npm run visual` builds the production renderer, launches Electron, dismisses onboarding, visits every route, captures `screenshots/*.png`, captures the Conversation view with the 3D core, minimizes into the robot launcher, and audits document width and the `window.igris` bridge.
 
 The harness is intentionally separate from the pass/fail test suite: it produces artifacts for human review. Current screenshots cover:
 
@@ -176,7 +175,7 @@ The harness is intentionally separate from the pass/fail test suite: it produces
 8. activity
 9. settings
 10. permissions
-11. companion
+11. chat
 12. history
 13. minimized robot launcher
 
@@ -206,12 +205,11 @@ Before releasing a build:
 - [ ] Terminal: allowed command runs; `git push` and shell chaining are blocked.
 - [ ] Deny a confirmation → tool run is marked denied, no side effect.
 - [ ] Let a confirmation expire → run fails safely.
-- [ ] Screen capture with permission → file appears in `data/screenshots`.
+- [ ] Screen vision with permission → capture lands in the local screenshot folder and the image is attached to the model for that run.
 - [ ] Browser: open a page, web search, and YouTube search all open in the default browser; IGRIS reports it cannot read or control the page.
 
 ### Windows behavior
 
-- [ ] Companion drags, stays above other windows, hides, and reopens.
 - [ ] Minimize/restore, the draggable robot bubble, tray menu, close-to-tray setting, second-instance focus.
 - [ ] Toggle each accent, 3D off, reduced motion; restart and confirm persistence.
 - [ ] Uninstall/reinstall the NSIS package; user data remains unless explicitly cleared.

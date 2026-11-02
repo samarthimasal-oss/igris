@@ -10,7 +10,6 @@ import {
   FolderOpen,
   Globe2,
   Monitor,
-  MousePointer2,
   Paintbrush,
   Play,
   RefreshCw,
@@ -70,7 +69,6 @@ export function ComputerPage() {
   const canScreen = settings?.permissions.screen ?? false
   const canLaunch = settings?.permissions.appLaunch ?? false
   const canBrowser = settings?.permissions.browser ?? false
-  const canInput = settings?.permissions.inputControl ?? false
 
   useEffect(() => {
     let active = true
@@ -154,7 +152,7 @@ export function ComputerPage() {
 
   const openBrowser = async (): Promise<void> => {
     try {
-      await window.igris.system.openExternal('https://duckduckgo.com/')
+      await window.igris.system.openExternal('https://www.youtube.com/')
       notify('info', 'Default browser opened', 'IGRIS hands web pages to Chrome, Edge, or whatever Windows uses.')
     } catch (error) {
       notify('error', 'Could not open your browser', `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim())
@@ -173,16 +171,13 @@ export function ComputerPage() {
   return (
     <div className="page computer-page">
       <PageHeader
-        eyebrow="Native control"
+        eyebrow="Native capabilities"
         title="Computer"
-        description="See what IGRIS can reach, capture the screen, launch approved apps, and inspect active windows."
+        description="See your real screen, launch approved apps, and inspect open windows — real vision, permissioned access."
         actions={
           <>
-            <Button variant="ghost" icon={<Globe2 size={15} />} onClick={() => void openBrowser()}>
-              Open browser
-            </Button>
             <Button variant="primary" icon={<Camera size={15} />} onClick={() => void captureScreen()} loading={capturing}>
-              Capture screen
+              See my screen
             </Button>
           </>
         }
@@ -210,7 +205,7 @@ export function ComputerPage() {
                 </Button>
               }
             >
-              IGRIS cannot capture your display or read window titles until you grant screen
+              IGRIS cannot look at your screen or read open windows until you grant screen
               access. Captures stay local.
             </Alert>
           ) : null}
@@ -220,7 +215,7 @@ export function ComputerPage() {
               <div className="capture-head">
                 <div>
                   <span className="eyebrow">Display surface</span>
-                  <h2>Primary screen</h2>
+                  <h2>See my screen</h2>
                 </div>
                 <Badge tone={screenStatus?.supported ? 'success' : 'warning'} dot>
                   {screenStatus?.supported ? 'Available' : 'Unavailable'}
@@ -234,7 +229,10 @@ export function ComputerPage() {
                     <span className="capture-crosshair" />
                     <Monitor size={34} strokeWidth={1.2} />
                     <strong>No capture yet</strong>
-                    <p>Take a still image of your primary display. IGRIS stores it in its local data folder.</p>
+                    <p>
+                      Ask IGRIS to “see my screen” in a conversation, or trigger a capture below.
+                      IGRIS stores it in its local data folder.
+                    </p>
                   </div>
                 )}
               </div>
@@ -281,8 +279,7 @@ export function ComputerPage() {
                     [
                       ['screen', canScreen],
                       ['appLaunch', canLaunch],
-                      ['browser', canBrowser],
-                      ['inputControl', canInput]
+                      ['browser', canBrowser]
                     ] as const
                   ).map(([key, enabled]) => (
                     <div key={key} className="permission-row">
@@ -314,21 +311,8 @@ export function ComputerPage() {
                 <div className="browser-status-foot">
                   <span>IGRIS cannot read or control those pages</span>
                   <Button variant="default" size="sm" onClick={() => void openBrowser()}>
-                    Open browser
+                    Open YouTube
                   </Button>
-                </div>
-              </Card>
-
-              <Card className="control-note">
-                <div className="control-note-icon">
-                  <MousePointer2 size={16} />
-                </div>
-                <div>
-                  <strong>Input control is experimental</strong>
-                  <p>
-                    Keyboard and mouse actions require explicit permission and a confirmation for
-                    every call. Verify focus before allowing IGRIS to type or click.
-                  </p>
                 </div>
               </Card>
             </div>
@@ -359,9 +343,9 @@ export function ComputerPage() {
                   <small>Windows allowlist</small>
                 </div>
                 <div>
-                  <span>Input capability</span>
-                  <strong>{canInput ? 'Enabled' : 'Locked'}</strong>
-                  <small>Per-action confirmation</small>
+                  <span>Voice input</span>
+                  <strong>{settings?.permissions.voice ? 'Enabled' : 'Locked'}</strong>
+                  <small>Cloud transcription via microphone</small>
                 </div>
               </div>
             </Card>

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ConfirmationRequest, Settings, ToolExecutionRecord } from '@shared/types'
+import type { ConfirmationRequest, Settings, ToolExecutionRecord, ToolImage } from '@shared/types'
 import { AppError, normalizeError } from '../security/errors'
 import { redactAndTruncate } from '../security/redaction'
 import type { TaskService } from '../tasks/taskService'
@@ -32,6 +32,7 @@ export interface ToolInvocationResult {
   ok: boolean
   denied: boolean
   text: string
+  images?: ToolImage[]
   display?: string
 }
 
@@ -237,7 +238,7 @@ export class ToolRuntime {
         arguments: parsed,
         result: safeText
       })
-      return { ok: true, denied: false, text: safeText, display: outcome.display }
+      return { ok: true, denied: false, text: safeText, display: outcome.display, images: outcome.images }
     } catch (error) {
       if (invocation.signal.aborted) {
         this.tasks.updateToolRun(run.id, {

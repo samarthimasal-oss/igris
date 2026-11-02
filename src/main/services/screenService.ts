@@ -18,7 +18,7 @@ export class ScreenService {
     } catch (error) {
       return {
         supported: false,
-        detail: error instanceof Error ? error.message : 'Screen capture is unavailable.'
+        detail: error instanceof Error ? error.message : 'Screen vision is unavailable.'
       }
     }
   }

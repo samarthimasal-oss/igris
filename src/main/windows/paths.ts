@@ -17,12 +17,6 @@ export function mainPageUrl(route = '/'): string {
   return `${file}#${route}`
 }
 
-export function companionPageUrl(): string {
-  const devUrl = process.env.ELECTRON_RENDERER_URL
-  if (devUrl) return `${devUrl.replace(/\/+$/, '')}/companion.html`
-  return pathToFileURL(join(__dirname, '../renderer/companion.html')).toString()
-}
-
 export function miniPageUrl(): string {
   const devUrl = process.env.ELECTRON_RENDERER_URL
   if (devUrl) return `${devUrl.replace(/\/+$/, '')}/mini.html`

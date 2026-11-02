@@ -2,11 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC_CALL_CHANNEL,
   IPC_CHAT_EVENT,
-  IPC_COMPANION_EVENT,
   IPC_DRAFT_EVENT,
   IPC_NAVIGATE_EVENT,
   IPC_TASK_EVENT,
-  type CompanionEvent,
   type DraftEvent,
   type IgrisBridge,
   type IpcContract,
@@ -19,7 +17,6 @@ import type {
   ChatHandle,
   ChatMessage,
   ChatSendInput,
-  CompanionState,
   Conversation,
   ConversationSummary,
   ConversationWithMessages,
@@ -188,14 +185,9 @@ const bridge: IgrisBridge = {
     export: () => invoke('diagnostics.export'),
     clearLogs: () => invoke('diagnostics.clearLogs')
   },
-  companion: {
-    state: () => invoke('companion.state'),
-    openMain: (route?: string) => invoke('companion.openMain', route === undefined ? undefined : { route }),
-    ask: (text: string) => invoke('companion.ask', { text }),
-    hide: () => invoke('companion.hide'),
-    show: () => invoke('companion.show'),
-    setAlwaysOnTop: (value: boolean) => invoke('companion.setAlwaysOnTop', { value }),
-    onEvent: (listener: (event: CompanionEvent) => void) => subscribe(IPC_COMPANION_EVENT, listener)
+  voice: {
+    transcribe: (input: { audioBase64: string; mimeType: string }) =>
+      invoke('voice.transcribe', input)
   },
   mini: {
     restore: () => invoke('mini.restore')
@@ -239,7 +231,6 @@ export type PreloadSurfaces = {
   tool: ToolInfo
   memory: MemoryItem
   log: LogEntry
-  companion: CompanionState
   result: OkResult
   exported: ExportResult
 }

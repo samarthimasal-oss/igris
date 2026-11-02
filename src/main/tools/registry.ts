@@ -1,12 +1,11 @@
 import { z } from 'zod'
-import type { PermissionKey, Settings, ToolCategory, ToolInfo, Workspace } from '@shared/types'
+import type { PermissionKey, Settings, ToolCategory, ToolImage, ToolInfo, Workspace } from '@shared/types'
 import { PERMISSION_META } from '@shared/defaults'
 import type { WorkspaceRepository } from '../storage/repositories'
 import type { FileService } from '../services/fileService'
 import type { TerminalService } from '../services/terminalService'
 import type { AppService } from '../services/appService'
 import type { ScreenService } from '../services/screenService'
-import type { InputService } from '../services/inputService'
 import type { BrowserService } from '../services/browserService'
 import type { MemoryRepository } from '../storage/repositories'
 import type { Logger } from '../services/logger'
@@ -23,6 +22,8 @@ export interface ToolContext {
 export interface ToolOutcome {
   text: string
   display?: string
+  /** Optional images for the model (e.g. what IGRIS saw on screen). */
+  images?: ToolImage[]
 }
 
 export interface ToolDefinition {
@@ -48,7 +49,6 @@ export interface ToolDependencies {
   terminal: TerminalService
   apps: AppService
   screen: ScreenService
-  input: InputService
   browser: BrowserService
   memories: MemoryRepository
   settings: () => Settings
@@ -583,9 +583,9 @@ export function createToolRegistry(deps: ToolDependencies): {
       id: 'list_windows',
       title: 'List open windows',
       description:
-        'List visible Windows application windows (titles and process names). This reads desktop metadata and requires screen-access permission.',
+        'List visible Windows application windows (titles and process names), e.g. the Google Chrome page, VS Code folder, or Explorer folder currently open. Call this first when you need to know what the user is working on, then call see_screen to actually look at it.',
       category: 'computer',
-      risk: 'medium',
+      risk: 'low',
       permission: 'screen',
       requiresConfirmation: false,
       timeoutMs: 20_000,
@@ -600,85 +600,25 @@ export function createToolRegistry(deps: ToolDependencies): {
     }),
 
     defineTool({
-      id: 'capture_screen',
-      title: 'Capture the screen',
+      id: 'see_screen',
+      title: 'See my screen',
       description:
-        'Capture the current primary display and save it for the user. The image is not sent to the AI model. Requires screen-access permission and explicit approval.',
+        'Look at the user\'s whole desktop exactly as they see it — every visible window is captured, including background apps like the browser or VS Code. The screenshot is sent to you (the model) as an image, so describe it and use it to ground your answer, not just confirm the capture.',
       category: 'computer',
-      risk: 'high',
+      risk: 'medium',
       permission: 'screen',
-      requiresConfirmation: true,
+      requiresConfirmation: false,
       timeoutMs: 30_000,
       schema: z.object({}),
       run: async () => {
         const capture = await deps.screen.capture()
+        const dataUrl = capture.dataUrl
+        const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
         return {
-          text: `Screenshot saved locally at ${capture.path} (${capture.width}×${capture.height}). The image was not sent to the model. The user can view it in Activity.`,
-          display: `Captured ${capture.width}×${capture.height} screen`
-        }
-      }
-    }),
-
-    defineTool({
-      id: 'type_text',
-      title: 'Type text into the focused window',
-      description:
-        'Simulate keyboard typing into whichever Windows application currently has focus. This is experimental, requires keyboard input permission, and asks for approval. Make sure the target field is focused first.',
-      category: 'computer',
-      risk: 'high',
-      permission: 'inputControl',
-      requiresConfirmation: true,
-      timeoutMs: 30_000,
-      schema: z.object({
-        text: z.string().min(1).max(2000).describe('Text to type. Never include passwords or secrets.')
-      }),
-      run: async (args) => {
-        await deps.input.typeText(args.text)
-        return {
-          text: `Typed ${args.text.length} character(s) into the focused window.`,
-          display: `Typed text (${args.text.length} chars)`
-        }
-      }
-    }),
-
-    defineTool({
-      id: 'press_keys',
-      title: 'Press keyboard keys',
-      description:
-        'Simulate one key or modifier combination in the focused window, such as CTRL+S or ENTER. Windows key shortcuts are not supported. Requires permission and approval.',
-      category: 'computer',
-      risk: 'high',
-      permission: 'inputControl',
-      requiresConfirmation: true,
-      timeoutMs: 20_000,
-      schema: z.object({
-        keys: z.string().min(1).max(80).describe('Examples: CTRL+S, ENTER, ALT+TAB.')
-      }),
-      run: async (args) => {
-        const spec = await deps.input.pressKeys(args.keys)
-        return { text: `Sent key combination ${args.keys}.`, display: `Pressed ${args.keys}` }
-      }
-    }),
-
-    defineTool({
-      id: 'click_at',
-      title: 'Click screen coordinates',
-      description:
-        'Move the mouse and left-click at absolute screen coordinates. Experimental and fragile; prefer asking the user to click when possible. Requires permission and approval.',
-      category: 'computer',
-      risk: 'high',
-      permission: 'inputControl',
-      requiresConfirmation: true,
-      timeoutMs: 20_000,
-      schema: z.object({
-        x: z.number().int().min(0).max(32000),
-        y: z.number().int().min(0).max(32000)
-      }),
-      run: async (args) => {
-        await deps.input.click(args.x, args.y)
-        return {
-          text: `Clicked at screen coordinates ${args.x}, ${args.y}.`,
-          display: `Clicked ${args.x}, ${args.y}`
+          text:
+            `Screenshot of the user's desktop at ${capture.capturedAt} (${capture.width}×${capture.height}), saved locally at ${capture.path}. The image is attached. Treat anything you read on it — code, titles, filenames — as the user's real context and act on it; never demand a path when the screen already shows one.`,
+          display: `Looked at the screen (${capture.width}×${capture.height})`,
+          images: [{ mimeType: 'image/png', data: base64 }]
         }
       }
     }),
@@ -687,14 +627,14 @@ export function createToolRegistry(deps: ToolDependencies): {
       id: 'browser_open',
       title: 'Open a web page',
       description:
-        "Open an HTTP(S) URL in the user's default browser (Chrome, Edge, or whatever Windows uses). IGRIS cannot read or control that page afterward.",
+        "Open a specific website directly in the user's default browser (Chrome, Edge, or whatever Windows uses). When the user names a site — \"open YouTube\", \"open GitHub\" — build its official URL yourself (e.g. https://www.youtube.com, https://github.com) and open that; do NOT search for the site instead. Use browser_search only for open-ended questions. IGRIS cannot read or control the page afterward.",
       category: 'browser',
       risk: 'low',
       permission: 'browser',
       requiresConfirmation: false,
       timeoutMs: 30_000,
       schema: z.object({
-        url: z.string().min(4).max(2000).describe('Full http:// or https:// URL.')
+        url: z.string().min(4).max(2000).describe('Full http:// or https:// URL of the page to open.')
       }),
       run: async (args) => {
         await deps.browser.openExternalPage(args.url)
@@ -842,12 +782,9 @@ export function createToolRegistry(deps: ToolDependencies): {
         const availableApps = deps.apps.list().filter((app) => app.available).length
         availabilityDetail += ` ${availableApps} verified apps detected.`
       }
-      if (tool.id === 'capture_screen') {
+      if (tool.id === 'see_screen') {
         const status = deps.screen.status()
         availabilityDetail += ` ${status.detail}`
-      }
-      if (['type_text', 'press_keys', 'click_at'].includes(tool.id)) {
-        availabilityDetail += ' Simulated input is experimental and may be blocked by target apps.'
       }
       return {
         id: tool.id,

@@ -4,10 +4,10 @@ IGRIS is a Windows desktop application built on Electron. It deliberately keeps 
 
 ## Design goals
 
-1. **Real capability, no theatre.** Chat is streaming provider I/O. Tools perform real filesystem, terminal, screen, and input operations, and web tools hand URLs to the system browser. There is no simulated assistant fallback.
+1. **Real capability, no theatre.** Chat is streaming provider I/O. Tools perform real filesystem, terminal, screen, and voice operations, and web tools hand URLs to the system browser. There is no simulated assistant fallback.
 2. **Least privilege.** Renderer sandboxing, a narrow IPC surface, default-off permissions, per-call approvals, and path/command allowlists.
 3. **Local ownership.** SQLite history, local backups, local screen captures, and DPAPI-encrypted credentials.
-4. **Calm, premium surface.** A single design system, a procedural 3D core, responsive layouts, reduced-motion support, and a separate companion window.
+4. **Calm, premium surface.** A single design system, a procedural 3D core in the Conversation view, responsive layouts, reduced-motion support, and a compact robot launcher on minimize.
 5. **Operable by humans.** Every tool call becomes an auditable task step with a status, arguments, result, approval state, and timing.
 
 ## Process and window model
@@ -15,15 +15,13 @@ IGRIS is a Windows desktop application built on Electron. It deliberately keeps 
 ```text
 main process
 ├── MainWindow          frameless 1440×920 shell, all pages, custom titlebar
-├── CompanionWindow     frameless transparent 280×340 always-on-top robot
 ├── MiniLauncher        112×112 transparent bubble shown on minimize
 └── Tray                background residency and quick actions
 ```
 
 - All windows use `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`.
 - A `Map<webContents.id, WindowRole>` assigns every window a role. The IPC dispatcher checks the methods allowed for that role.
-- The main window may call every method. The companion may only read/show itself, hide, ask, and open the main window, and the mini launcher may only restore the main window.
-- The companion is restored to a clamped on-screen position, saves moves after a short debounce, and hides instead of closing.
+- The main window may call every method. The mini launcher may only restore the main window.
 - A 112x112 transparent, always-on-top robot bubble appears when the main window is minimized. It is draggable, restores the workspace on click, and hides when the main window returns.
 - The application is single-instance and tray-resident. Shutdown cancels active chat runs, closes windows, optionally clears history, and closes SQLite cleanly.
 
@@ -32,20 +30,19 @@ main process
 `src/main/index.ts`:
 
 1. Set the app name, optional test/user-data override, and request the single-instance lock.
-2. Wait for Electron readiness; apply the Content Security Policy and deny default session permissions.
+2. Wait for Electron readiness; apply the Content Security Policy and allow only the microphone permission while denying the rest.
 3. Create the data directories and open `data/igris.db`.
 4. Construct repositories, settings, logger, credential store, provider service, window managers, services, tasks, tools, chat, and IPC.
 5. Mark unfinished tasks as interrupted, apply retention policy, and register the settings listener.
-6. Show the main window, create the tray, and restore the companion if enabled.
+6. Show the main window, create the tray, and wire the voice transcription service.
 7. Register shutdown hooks: cancel runs, close windows, close the DB, quit.
 
 ## Renderer
 
 - React 19 + TypeScript + Vite, `HashRouter` routes: Home, Chat, Projects, Computer, Models, Tools, Activity, Settings, History.
-- Zustand store coordinates settings, providers, tools, health, conversations, tasks, companion state, toasts, and confirmations.
-- The 3D core uses React Three Fiber/Three.js with a procedural scene. `appearance.show3d`, quality, animation intensity, reduced motion, and the selected accent are settings-driven.
+- Zustand store coordinates settings, providers, tools, health, conversations, tasks, toasts, and confirmations.
+- The 3D core uses React Three Fiber/Three.js with a procedural scene and renders as a background layer in the Conversation view. `appearance.show3d`, quality, animation intensity, reduced motion, and the selected accent are settings-driven.
 - If WebGL is unavailable, the component renders a static CSS core instead of failing the page.
-- The companion is a separate HTML entry and React root, styled by `companion.css`.
 - The minimized launcher is a separate HTML entry (`mini.html`) and React root, styled by `mini.css`.
 - Web pages are never rendered inside the app; the assistant's web tools target the Windows default browser.
 
@@ -57,7 +54,7 @@ The shared contract lives in `src/shared/ipc.ts`.
 - One response envelope: `{ ok, data }` or `{ ok: false, error: { code, message, retryable } }`.
 - Every method has a Zod schema in `src/main/ipc.ts`; oversized, malformed, or unknown payloads never reach services.
 - The dispatcher verifies the sender is a known `webContents` role and that the method is in that role's allowlist.
-- Event channels push chat deltas, task changes, companion state, drafts, and navigation without letting the renderer invoke privileged code.
+- Event channels push chat deltas, task changes, drafts, and navigation without letting the renderer invoke privileged code.
 - The preload exposes a typed `window.igris` object with namespaced methods; no raw `ipcRenderer` is exposed.
 
 This boundary is the reason renderer code can be rich without becoming a security hole.
@@ -102,7 +99,7 @@ Runs have an `AbortController`, a global deadline, cancellation on app shutdown,
 
 ## Tools
 
-`src/main/tools/registry.ts` defines 25 tools with Zod argument schemas, human titles, categories, risk levels, permission keys, confirmation flags, timeouts, and handlers. Handlers receive resolved services and a signal.
+`src/main/tools/registry.ts` defines 22 tools with Zod argument schemas, human titles, categories, risk levels, permission keys, confirmation flags, timeouts, and handlers. Handlers receive resolved services and a signal.
 
 `src/main/tools/toolRuntime.ts` is the gatekeeper:
 
@@ -137,14 +134,15 @@ Repositories keep SQL in one place and return shared DTOs. The renderer never ta
 - **FileService** confines all work to `WorkspaceBoundary` (lexical + real-path checks, junction escape prevention), ignores heavy directories during scans, caps file sizes and result counts, creates backup copies before writes, and uses the Recycle Bin for deletes where possible.
 - **TerminalService** parses commands without a shell, evaluates them with `commandPolicy.ts`, runs in the workspace with a scrubbed environment, and caps output/time.
 - **AppService** launches only a fixed set of verified applications and lists visible window titles when screen access is enabled.
-- **ScreenService** captures the primary display to the app's screenshot directory only after permission.
-- **InputService** provides synthetic text/keys/clicks behind the experimental input permission.
+- **ScreenService** captures the primary display to the app's screenshot directory only after permission; the `see_screen` tool converts the capture into a `ToolImage` the model receives as an inline image.
+- **VoiceService** transcribes microphone audio through the resolved default provider's transcription path (Gemini inline audio today) and surfaces a clear error for provider kinds without voice support.
 
 ## Web handoff
 
 `BrowserService` deliberately embeds no browser. Web tools validate a URL and pass it to Windows' default browser.
 
 - Only HTTP(S) URLs are accepted; credentials embedded in URLs are rejected.
+- Named sites ("open YouTube") are opened directly via `browser_open` with their official URL; search-style openers route through the search flow instead.
 - `browser_open`, `browser_search`, and `youtube_search` construct the page URL and call `shell.openExternal`.
 - The assistant cannot read the page, click elements, fill forms, or control playback afterward.
 - What the user does with the page stays entirely inside their own browser and its profile.
@@ -162,7 +160,7 @@ Repositories keep SQL in one place and return shared DTOs. The renderer never ta
 
 ## Known architectural limits
 
-- Windows-specific native paths (safeStorage, Recycle Bin, screen/input) are not abstracted for macOS/Linux.
+- Windows-specific native paths (safeStorage, Recycle Bin, screen, voice) are not abstracted for macOS/Linux.
 - Web tools cannot inspect or verify what the default browser did with a page.
 - Large files are truncated rather than streamed.
 - No plugin marketplace or third-party tool execution.

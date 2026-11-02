@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { Minimize2, Square, X } from 'lucide-react'
 
 const TITLES: Array<{ match: (path: string) => boolean; label: string }> = [
-  { match: (path) => path === '/', label: 'Command deck' },
+  { match: (path) => path === '/', label: 'Home' },
   { match: (path) => path.startsWith('/chat/'), label: 'Conversation' },
   { match: (path) => path.startsWith('/chat'), label: 'Conversation' },
   { match: (path) => path.startsWith('/projects'), label: 'Projects' },

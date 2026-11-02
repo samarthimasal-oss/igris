@@ -4,7 +4,6 @@ import type {
   ChatHandle,
   ChatMessage,
   ChatSendInput,
-  CompanionState,
   Conversation,
   ConversationSummary,
   ConversationWithMessages,
@@ -140,12 +139,7 @@ export interface IpcContract {
   'diagnostics.export': { input: void; output: ExportResult }
   'diagnostics.clearLogs': { input: void; output: OkResult }
 
-  'companion.state': { input: void; output: CompanionState }
-  'companion.openMain': { input: { route?: string } | undefined; output: OkResult }
-  'companion.ask': { input: { text: string }; output: OkResult }
-  'companion.hide': { input: void; output: OkResult }
-  'companion.show': { input: void; output: OkResult }
-  'companion.setAlwaysOnTop': { input: { value: boolean }; output: CompanionState }
+  'voice.transcribe': { input: { audioBase64: string; mimeType: string }; output: { text: string } }
 
   'mini.restore': { input: void; output: OkResult }
 
@@ -163,10 +157,6 @@ export interface DraftEvent {
 export interface NavigateEvent {
   route: string
   draft?: string
-}
-
-export interface CompanionEvent {
-  state: CompanionState
 }
 
 export interface IgrisBridge {
@@ -267,14 +257,8 @@ export interface IgrisBridge {
     export: () => Promise<ExportResult>
     clearLogs: () => Promise<OkResult>
   }
-  companion: {
-    state: () => Promise<CompanionState>
-    openMain: (route?: string) => Promise<OkResult>
-    ask: (text: string) => Promise<OkResult>
-    hide: () => Promise<OkResult>
-    show: () => Promise<OkResult>
-    setAlwaysOnTop: (value: boolean) => Promise<CompanionState>
-    onEvent: (listener: (event: CompanionEvent) => void) => () => void
+  voice: {
+    transcribe: (input: { audioBase64: string; mimeType: string }) => Promise<{ text: string }>
   }
   mini: {
     restore: () => Promise<OkResult>
@@ -292,14 +276,12 @@ export interface IgrisBridge {
 export const IPC_CALL_CHANNEL = 'igris:call'
 export const IPC_CHAT_EVENT = 'igris:chat-event'
 export const IPC_TASK_EVENT = 'igris:task-event'
-export const IPC_COMPANION_EVENT = 'igris:companion-event'
 export const IPC_DRAFT_EVENT = 'igris:draft-event'
 export const IPC_NAVIGATE_EVENT = 'igris:navigate-event'
 
-export type WindowRole = 'main' | 'companion' | 'mini'
+export type WindowRole = 'main' | 'mini'
 
 export const ROLE_METHOD_ALLOWLIST: Record<WindowRole, IpcMethod[] | 'all'> = {
   main: 'all',
-  companion: ['companion.state', 'companion.openMain', 'companion.ask', 'companion.hide', 'companion.show'],
   mini: ['mini.restore']
 }

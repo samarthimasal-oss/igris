@@ -1606,64 +1606,6 @@ svg {
   border-top: 1px solid rgba(154, 185, 216, 0.07);
 }
 
-.companion-chip {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 8px;
-  border-radius: 10px;
-  text-align: left;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.022);
-  transition: all 0.18s var(--ease);
-}
-
-.companion-chip:hover {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: var(--line-strong);
-}
-
-.companion-chip-orb {
-  display: grid;
-  place-items: center;
-  width: 29px;
-  height: 29px;
-  flex: 0 0 auto;
-  border-radius: 9px;
-  color: var(--dim);
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid var(--line);
-}
-
-.companion-chip-orb.is-live {
-  color: var(--accent);
-  border-color: rgba(var(--accent-rgb), 0.24);
-  background: rgba(var(--accent-rgb), 0.08);
-  box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.09);
-}
-
-.companion-chip-copy {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-
-.companion-chip-copy strong {
-  font-size: 11px;
-  font-weight: 650;
-  color: var(--text-soft);
-}
-
-.companion-chip-copy small {
-  font-size: 9.5px;
-  color: var(--dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .sidebar-system {
   display: flex;
   flex-direction: column;
@@ -1843,7 +1785,7 @@ svg {
 
 .hero-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.12fr) minmax(340px, 0.88fr);
+  grid-template-columns: minmax(0, 1fr);
   min-height: 426px;
   overflow: hidden;
   border-color: rgba(174, 205, 235, 0.13);
@@ -1953,100 +1895,6 @@ svg {
 
 .hero-meta svg {
   color: #6f8298;
-}
-
-.hero-core {
-  position: relative;
-  min-height: 380px;
-  overflow: hidden;
-  border-left: 1px solid var(--line);
-  background:
-    radial-gradient(62% 62% at 52% 48%, rgba(var(--accent-rgb), 0.12), transparent 68%),
-    radial-gradient(80% 80% at 50% 110%, rgba(90, 110, 200, 0.1), transparent 60%),
-    linear-gradient(180deg, rgba(5, 9, 14, 0.25), rgba(4, 7, 11, 0.6));
-}
-
-.hero-core-grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.6;
-  background-image:
-    linear-gradient(rgba(126, 164, 204, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(126, 164, 204, 0.055) 1px, transparent 1px);
-  background-size: 38px 38px;
-  mask-image: radial-gradient(70% 70% at 50% 50%, #000 20%, transparent 78%);
-  -webkit-mask-image: radial-gradient(70% 70% at 50% 50%, #000 20%, transparent 78%);
-}
-
-.hero-core::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 60%, rgba(4, 7, 11, 0.62));
-  pointer-events: none;
-  z-index: 1;
-}
-
-.core-readout {
-  position: absolute;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 0.1em;
-  color: #53657a;
-}
-
-.core-readout span {
-  text-transform: uppercase;
-  font-size: 7.5px;
-  color: #4b5a6b;
-}
-
-.core-readout strong {
-  font-weight: 400;
-  font-size: 8.5px;
-  color: #93a9bf;
-  letter-spacing: 0.04em;
-}
-
-.core-readout-tl {
-  top: 19px;
-  left: 20px;
-}
-
-.core-readout-tr {
-  top: 19px;
-  right: 20px;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  color: #8aa0b7;
-}
-
-.core-readout-bl {
-  bottom: 20px;
-  left: 20px;
-}
-
-.core-readout-br {
-  bottom: 18px;
-  right: 20px;
-  align-items: flex-end;
-}
-
-.core-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0;
-  color: #a9bfd6;
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.02em;
-  transition: color 0.16s ease;
 }
 
 .core-link:hover {
@@ -2602,6 +2450,21 @@ svg {
   grid-template-columns: minmax(0, 1fr);
   height: 100%;
   min-height: 0;
+}
+
+.chat-core-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.chat-header,
+.chat-thread,
+.composer-shell {
+  position: relative;
+  z-index: 1;
 }
 
 .chat-rail {
@@ -3617,6 +3480,41 @@ svg {
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
+}
+
+.icon-btn.is-listening {
+  color: var(--danger);
+  border-color: rgba(var(--danger-rgb), 0.42);
+  background: rgba(var(--danger-rgb), 0.12);
+}
+
+.composer-recording {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.recording-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: recording-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .composer-footnote {
@@ -4862,8 +4760,7 @@ svg {
 }
 
 .permission-summary,
-.browser-status-card,
-.control-note {
+.browser-status-card {
   padding: 16px;
 }
 
@@ -4939,37 +4836,6 @@ svg {
   font-family: var(--font-mono);
   font-size: 8px;
   color: var(--dim);
-}
-
-.control-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-}
-
-.control-note-icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
-  border-radius: 8px;
-  color: var(--warning);
-  background: rgba(var(--warning-rgb), 0.07);
-  border: 1px solid rgba(var(--warning-rgb), 0.14);
-}
-
-.control-note strong {
-  font-size: 10.5px;
-  font-weight: 650;
-  color: var(--text-soft);
-}
-
-.control-note p {
-  margin-top: 3px;
-  color: var(--dim);
-  font-size: 9.5px;
-  line-height: 1.6;
 }
 
 .computer-details {
@@ -7742,14 +7608,6 @@ svg {
     padding: 26px 26px 46px;
   }
 
-  .hero-panel {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.78fr);
-  }
-
-  .hero-copy {
-    padding: 34px 30px 28px;
-  }
-
   .hero-copy h2 {
     font-size: 39px;
   }
@@ -7836,16 +7694,6 @@ svg {
 }
 
 @media (max-width: 1060px) {
-  .hero-panel {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .hero-core {
-    min-height: 330px;
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
-
   .home-stats,
   .tool-summary,
   .activity-stats {

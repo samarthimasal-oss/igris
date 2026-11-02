@@ -54,13 +54,13 @@ test('boots with the secure bridge and no horizontal overflow', async () => {
     chat: typeof window.igris?.chat?.send,
     providers: typeof window.igris?.providers?.list,
     settings: typeof window.igris?.settings?.get,
-    companion: typeof window.igris?.companion?.show
+    voice: typeof window.igris?.voice?.transcribe
   }))
   expect(bridge).toEqual({
     chat: 'function',
     providers: 'function',
     settings: 'function',
-    companion: 'function'
+    voice: 'function'
   })
 
   const layout = await page.evaluate(() => ({
@@ -178,42 +178,6 @@ test('offers OpenRouter free models with a locked endpoint', async () => {
   await expect(page.locator('.provider-kind-note', { hasText: ':free' })).toBeVisible()
 
   await page.locator('.provider-editor').getByRole('button', { name: 'Close', exact: true }).click()
-  expect(pageErrors).toEqual([])
-})
-
-test('opens the native companion and hides it again', async () => {
-  let companion = app.windows().find((candidate) => candidate.url().includes('companion.html'))
-  if (!companion) {
-    const windowPromise = app.waitForEvent('window')
-    await page.evaluate(async () => {
-      await window.igris.companion.show()
-    })
-    companion = await windowPromise
-  } else {
-    await page.evaluate(async () => {
-      await window.igris.companion.show()
-    })
-  }
-  await companion.waitForLoadState('domcontentloaded')
-  await companion.locator('.companion-root').waitFor({ state: 'visible', timeout: 20_000 })
-
-  await expect(companion.getByPlaceholder('Ask IGRIS…')).toBeVisible()
-  await expect(companion.getByRole('button', { name: 'Hide companion' })).toBeVisible()
-
-  const openState = await page.evaluate(async () => (await window.igris.companion.state()).open)
-  expect(openState).toBe(true)
-
-  await companion.getByRole('button', { name: 'Hide companion' }).click()
-  await expect
-    .poll(async () =>
-      app.evaluate(({ BrowserWindow }) => {
-        const win = BrowserWindow.getAllWindows().find((candidate) =>
-          candidate.webContents.getURL().includes('companion.html')
-        )
-        return win?.isVisible() ?? false
-      })
-    )
-    .toBe(false)
   expect(pageErrors).toEqual([])
 })
 

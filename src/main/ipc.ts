@@ -12,7 +12,6 @@ import {
 } from '@shared/ipc'
 import { PERMISSION_META } from '@shared/defaults'
 import type {
-  CompanionState,
   DeepPartial,
   ExportResult,
   HealthCheck,
@@ -29,7 +28,7 @@ import type { FileService } from './services/fileService'
 import type { TerminalService } from './services/terminalService'
 import type { AppService } from './services/appService'
 import type { ScreenService } from './services/screenService'
-import type { InputService } from './services/inputService'
+import type { VoiceService } from './services/voiceService'
 import type { CredentialStore } from './security/credentials'
 import type { Database } from './storage/database'
 import type {
@@ -43,7 +42,6 @@ import type { TaskService } from './tasks/taskService'
 import type { ChatEngine } from './ai/chatEngine'
 import type { createToolRegistry } from './tools/registry'
 import type { MainWindowManager } from './windows/mainWindow'
-import type { CompanionManager } from './windows/companionWindow'
 
 export type ToolRegistry = ReturnType<typeof createToolRegistry>
 
@@ -68,9 +66,8 @@ export interface AppContext {
   terminal: TerminalService
   apps: AppService
   screen: ScreenService
-  input: InputService
+  voice: VoiceService
   mainWindow: MainWindowManager
-  companion: CompanionManager
   exportBundle: typeof buildExportBundle
 }
 
@@ -98,7 +95,7 @@ const permissionKeys = [
   'appLaunch',
   'browser',
   'screen',
-  'inputControl'
+  'voice'
 ] as const
 
 const settingsPatchSchema = z
@@ -114,14 +111,8 @@ const settingsPatchSchema = z
       .optional(),
     desktop: z
       .object({
-        companionEnabled: z.boolean().optional(),
-        companionAlwaysOnTop: z.boolean().optional(),
         launchAtStartup: z.boolean().optional(),
-        closeToTray: z.boolean().optional(),
-        companionPosition: z
-          .object({ x: z.number().int(), y: z.number().int() })
-          .nullable()
-          .optional()
+        closeToTray: z.boolean().optional()
       })
       .optional(),
     permissions: z
@@ -252,9 +243,9 @@ const schemas: Partial<Record<IpcMethod, z.ZodType>> = {
     .strip(),
   'memories.delete': z.object({ id }).strip(),
   'diagnostics.logs': z.object({ limit: z.number().int().min(1).max(1000).optional() }).strip().optional(),
-  'companion.openMain': z.object({ route: z.string().max(300).optional() }).strip().optional(),
-  'companion.ask': z.object({ text: z.string().min(1).max(4000) }).strip(),
-  'companion.setAlwaysOnTop': z.object({ value: z.boolean() }).strip(),
+  'voice.transcribe': z
+    .object({ audioBase64: z.string().min(64).max(20_000_000), mimeType: z.enum(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav']) })
+    .strip(),
   'ui.draft': z.object({ text: z.string().max(40_000) }).strip()
 }
 
@@ -372,8 +363,7 @@ function healthReport(ctx: AppContext): HealthReport {
     activeProvider: active?.name ?? null,
     databaseBytes: dbBytes,
     uptimeSeconds,
-    pendingTasks: ctx.tasks.pendingCount(),
-    companionOpen: ctx.companion.isOpen()
+    pendingTasks: ctx.tasks.pendingCount()
   }
 }
 
@@ -667,29 +657,10 @@ function buildHandlers(ctx: AppContext): Record<IpcMethod, Handler> {
       return { ok: true }
     },
 
-    'companion.state': (): CompanionState => ctx.companion.state(),
-    'companion.openMain': (raw) => {
-      const input = (raw ?? {}) as { route?: string }
-      ctx.mainWindow.show(input.route || '/')
-      return { ok: true }
-    },
-    'companion.ask': (raw) => {
-      const input = raw as IpcContract['companion.ask']['input']
-      ctx.mainWindow.show('/chat', input.text)
-      return { ok: true }
-    },
-    'companion.hide': () => {
-      ctx.companion.hide()
-      return { ok: true }
-    },
-    'companion.show': () => {
-      ctx.companion.show()
-      return { ok: true }
-    },
-    'companion.setAlwaysOnTop': (raw) => {
-      const input = raw as IpcContract['companion.setAlwaysOnTop']['input']
-      ctx.companion.setAlwaysOnTop(input.value)
-      return ctx.companion.state()
+    'voice.transcribe': async (raw) => {
+      const input = raw as IpcContract['voice.transcribe']['input']
+      const text = await ctx.voice.transcribe(input.audioBase64, input.mimeType)
+      return { text }
     },
 
     'mini.restore': () => {

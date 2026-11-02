@@ -2,9 +2,9 @@
 
 **A premium personal AI assistant for Windows.** One calm, three-dimensional surface for asking, researching, writing code, and directing your machine — with every consequential action held behind explicit permission and approval.
 
-IGRIS is a native Electron application with a React interface, real cloud-model streaming, a local SQLite history, a separate always-on-top robot companion, and a permissioned tool runtime for files, terminals, applications, and screen capture, with web pages handed to your default browser.
+IGRIS is a native Electron application with a React interface, real cloud-model streaming, a local SQLite history, a small robot launcher that appears when the workspace is minimized, and a permissioned tool runtime for files, terminals, applications, real screen vision, voice input, and web handoff, with web pages handed to your default browser.
 
-![IGRIS command deck](docs/images/home.jpg)
+![IGRIS home](docs/images/home.jpg)
 
 > **Cloud intelligence only.** IGRIS does not ship a local model, does not silently fall back to one, and never fabricates an assistant response when no provider is configured. Add your own OpenAI, Anthropic, Gemini, OpenRouter, OpenCode Console, or OpenAI-compatible key.
 
@@ -12,12 +12,13 @@ IGRIS is a native Electron application with a React interface, real cloud-model 
 
 ## Highlights
 
-- **Immersive command deck** — obsidian, titanium, and electric-azure design with a procedural 3D core, graceful CSS fallback, and three accent identities.
+- **Immersive conversation core** — obsidian, titanium, and electric-azure design with a procedural 3D core in the Conversation view, graceful CSS fallback, and three accent identities.
 - **Genuine streaming chat** — SSE streaming from cloud providers, persistent conversations, cancellation, usage metadata, and provider-aware error messages.
-- **25 permissioned tools** — project inspection, file read/search/write/patch, checkpoints, allowlisted terminal commands, app launch, screen capture, native input, default-browser handoff, and memory.
+- **22 permissioned tools** — project inspection, file read/search/write/patch, checkpoints, allowlisted terminal commands, app launch, real screen vision, browser handoff, voice transcription, and memory.
 - **Approval by design** — sensitive tools require a granted capability *and* a per-call confirmation. High-risk tools are marked, logged, and time-limited.
-- **A separate companion** — a frameless, transparent, movable robot window that stays above other applications, accepts quick asks, and reflects live assistant state.
-- **Hands off your browser** — web pages open in Chrome, Edge, or whatever Windows uses. IGRIS never embeds a browser and cannot read, click, or fill those pages.
+- **See my screen** — real desktop vision: when you ask, IGRIS captures your whole desktop exactly as you see it (including background windows like the browser or VS Code) and attaches the image to the model so it can actually look.
+- **Voice input** — hold the microphone in the Conversation composer; speech is transcribed by your cloud provider (Gemini inline audio today) and sent into the chat as if you typed it. Mic access is gated by the `Voice input` permission.
+- **Hands off your browser** — web pages open in Chrome, Edge, or whatever Windows uses, directly to the site you named. IGRIS never embeds a browser and cannot read, click, or fill those pages.
 - **Local-first persistence** — conversations, tasks, tool runs, memories, logs, and settings live in a local SQLite database.
 - **Windows DPAPI credentials** — provider keys are encrypted with Electron `safeStorage`, used only in the privileged main process, and never sent back to the interface.
 - **Auditable activity** — every task, step, tool call, approval, and result appears in Activity, with diagnostic export.
@@ -106,9 +107,9 @@ Every capability is off by default. Enable only what you need in **Settings → 
 | Coding agent actions | Checkpoints and project test runs | Off |
 | Run terminal commands | Allowlisted development commands inside a project | Off |
 | Launch applications | Start apps from a fixed, verified list | Off |
-| Web browsing | Open pages, searches, and YouTube in your default browser | Off |
-| Screen access | Capture the primary display on explicit request | Off |
-| Keyboard and mouse control | Type, press keys, click coordinates (experimental) | Off |
+| Web browsing | Open pages and searches in your default browser | Off |
+| See my screen | Look at your whole desktop (background windows included) when you ask | Off |
+| Voice input | Transcribe microphone speech with your cloud provider | Off |
 
 Sensitive actions still require a per-call confirmation by default (`Settings → Intelligence → Confirm sensitive actions`). File writes create a backup; deletes go to the Windows Recycle Bin where possible; terminal commands run without a shell and are constrained by an executable allowlist.
 
@@ -120,7 +121,7 @@ Sensitive actions still require a per-call confirmation by default (`Settings �
 | Files | `read_file`, `search_files`, `write_file`, `apply_patch`, `create_entry`, `rename_entry`, `delete_entry` |
 | Code & terminal | `create_checkpoint`, `run_command`, `run_tests` |
 | Applications | `list_apps`, `launch_app`, `list_windows` |
-| Screen & input | `capture_screen`, `type_text`, `press_keys`, `click_at` |
+| Screen vision | `see_screen` (attaches the captured desktop image to the model) |
 | Browser | `browser_open`, `browser_search`, `youtube_search` (hand URLs to the system browser) |
 | Memory & system | `save_memory`, `search_memories`, `current_time` |
 
@@ -132,11 +133,13 @@ The model never receives a raw shell. It receives typed tool schemas; the main p
 
 ## The companion
 
-The companion is its own native window: frameless, transparent, draggable, and always-on-top. It reports idle, listening, thinking, working, success, and error states, accepts a quick ask into the main workspace, and can be pinned or hidden independently.
+The companion window is retired. IGRIS keeps only the small robot launcher:
 
-Minimizing the workspace leaves a compact robot bubble on the desktop. Drag it out of the way or click it to bring IGRIS back; it disappears the moment the main window returns.
+- The main window is a normal workspace window.
+- Minimizing it hides the workspace UI and shows a compact 112×112 robot bubble on the desktop (always on top, draggable, click to restore).
+- There is no separate companion window, tray companion status, or quick-ask surface.
 
-![IGRIS companion](docs/images/companion.jpg)
+![The compact robot launcher](docs/images/companion.jpg)
 
 ---
 
@@ -145,7 +148,7 @@ Minimizing the workspace leaves a compact robot bubble on the desktop. Drag it o
 ```text
 ┌───────────────────────────── Renderer (sandboxed) ─────────────────────────────┐
 │ React 19 + TypeScript + Vite · Home / Chat / Projects / Computer / Models /    │
-│ Tools / Activity / Settings / History · React Three Fiber core · companion UI  │
+│ Tools / Activity / Settings / History · React Three Fiber core                 │
 └───────────────────────────────▲────────────────────────────────────────────────┘
                                 │ typed contextBridge API (preload)
 ┌───────────────────────────────┴────────────────────────────────────────────────┐
@@ -154,7 +157,7 @@ Minimizing the workspace leaves a compact robot bubble on the desktop. Drag it o
 │  OpenRouter / OpenCode) · streaming, tool calls, discovery                     │
 │  ChatEngine → streaming runs, cancellation, tool loop                          │
 │  ToolRuntime → permissions, confirmations, risk, timeouts, audit                │
-│  Services → files, terminal, apps, screen, input, web handoff                   │
+│  Services → files, terminal, apps, screen, voice, web handoff                │
 │  Storage → node:sqlite repositories · CredentialStore (DPAPI) · Logger          │
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -176,7 +179,7 @@ IGRIS uses the Electron per-user data directory, normally:
 %APPDATA%\IGRIS\
   data\igris.db          SQLite database (including diagnostic events)
   data\backups\          file-write backups
-  data\screenshots\      explicit screen captures
+  data\screenshots\      screen visions captured by the assistant
 ```
 
 Use **Settings → Privacy & data** to export data, clear conversation and memory history, change retention, or disable conversation saving. No telemetry is sent anywhere.
@@ -188,7 +191,7 @@ Use **Settings → Privacy & data** to export data, clear conversation and memor
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Electron + Vite development with HMR |
-| `npm run build` | Type-check and build main, preload, renderer, companion, and mini launcher |
+| `npm run build` | Type-check and build main, preload, renderer, and mini launcher |
 | `npm start` | Preview the production build |
 | `npm test` | Vitest unit and integration suite |
 | `npm run test:e2e` | Build, then run Playwright Electron smoke tests |
@@ -202,7 +205,7 @@ Use **Settings → Privacy & data** to export data, clear conversation and memor
 
 - `npm run typecheck` — passing
 - `npm test` - **79 tests passing** across 10 files
-- `npm run test:e2e` - **8 Electron smoke tests passing**
+- `npm run test:e2e` - **7 Electron smoke tests passing**
 - `npm run test:packaged` — packaged `IGRIS.exe` boots, bridges, and routes
 - `npm run pack` — passing (`release/win-unpacked/IGRIS.exe`)
 - `npm run dist` — passing (`release/IGRIS-1.0.0-x64-Setup.exe`)
@@ -220,15 +223,15 @@ src/
   main/          Electron main process
     ai/          provider adapters, SSE, HTTP, chat engine
     security/    credentials, path guard, command policy, redaction, errors
-    services/    files, terminal, apps, screen, input, web handoff, provider, settings
+    services/    files, terminal, apps, screen, voice, web handoff, provider, settings
     storage/     SQLite database and repositories
     tasks/       task state and orchestration
     tools/       tool registry and runtime
-    windows/     main, companion, mini, paths
+    windows/     main, mini, paths
     ipc.ts       validated dispatcher and role allowlists
     index.ts     boot, lifecycle, wiring
   preload/       contextBridge and type declarations
-  renderer/      React application, companion, and mini launcher UI
+  renderer/      React application and mini launcher UI
   shared/        types, defaults, settings normalization, IPC contract
 tests/
   unit/          pure security, settings, SSE, error, state tests
@@ -261,7 +264,8 @@ Please do not open a public issue containing an API key, personal path, or conve
 - **Windows only** at this time. The UI is responsive, but native window and input paths target Windows.
 - **Cloud keys required.** There is no bundled model, no offline inference, and no local fallback.
 - **Unsigned installer.** Code signing is intentionally left to the distributor.
-- **Input control is experimental.** Screen capture and synthetic input depend on display configuration and app focus; verify before use.
+- **No keyboard or mouse control.** IGRIS cannot type, click, or drive other applications; it acts through tools only.
+- **Screen vision is best effort.** Captures depend on display configuration and the permission being granted; images are attached to the model for the current run only.
 - **Web tools only hand off URLs.** IGRIS cannot see, read, or control the default browser, so it cannot bypass site authentication, CAPTCHAs, or anti-bot controls.
 - **Live provider behavior varies.** Model IDs, tool-calling support, quotas, and rate limits are controlled by the provider.
 

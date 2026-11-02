@@ -46,7 +46,7 @@ const PERMISSION_ORDER: PermissionKey[] = [
   'appLaunch',
   'browser',
   'screen',
-  'inputControl'
+  'voice'
 ]
 
 const SECTION_LINKS = [
@@ -64,9 +64,7 @@ export function SettingsPage() {
   const settings = useAppStore((state) => state.settings)
   const system = useAppStore((state) => state.system)
   const health = useAppStore((state) => state.health)
-  const companion = useAppStore((state) => state.companion)
   const updateSettings = useAppStore((state) => state.updateSettings)
-  const refreshCompanion = useAppStore((state) => state.refreshCompanion)
   const refreshConversations = useAppStore((state) => state.refreshConversations)
   const newConversation = useAppStore((state) => state.newConversation)
   const openOnboarding = useAppStore((state) => state.openOnboarding)
@@ -109,16 +107,6 @@ export function SettingsPage() {
     if (ok) {
       setInstructionsDirty(false)
       notify('success', 'Assistant instructions saved')
-    }
-  }
-
-  const toggleCompanion = async (): Promise<void> => {
-    try {
-      if (settings.desktop.companionEnabled) await window.igris.companion.hide()
-      else await window.igris.companion.show()
-      await refreshCompanion()
-    } catch (error) {
-      notify('error', 'Companion unavailable', errorMessage(error))
     }
   }
 
@@ -302,27 +290,12 @@ export function SettingsPage() {
             <div className="settings-card-head">
               <div className="settings-card-icon"><Monitor size={17} /></div>
               <div>
-                <h2>Desktop & companion</h2>
-                <p>Native window behaviour and the always-on-top presence.</p>
+                <h2>Desktop</h2>
+                <p>Native window behaviour, tray and startup.</p>
               </div>
-              <Badge tone={settings.desktop.companionEnabled ? 'success' : 'neutral'} dot>
-                {settings.desktop.companionEnabled ? 'Companion on' : 'Companion off'}
-              </Badge>
             </div>
 
             <div className="settings-toggle-list">
-              <Toggle
-                checked={settings.desktop.companionEnabled}
-                onChange={(value) => void apply({ desktop: { companionEnabled: value } })}
-                label="Show the desktop companion"
-                description="A movable, transparent robot window that stays above other apps."
-              />
-              <Toggle
-                checked={settings.desktop.companionAlwaysOnTop}
-                onChange={(value) => void apply({ desktop: { companionAlwaysOnTop: value } })}
-                label="Keep the companion above other windows"
-                description="Can be changed at any time from the companion itself."
-              />
               <Toggle
                 checked={settings.desktop.launchAtStartup}
                 onChange={(value) => void apply({ desktop: { launchAtStartup: value } })}
@@ -333,17 +306,8 @@ export function SettingsPage() {
                 checked={settings.desktop.closeToTray}
                 onChange={(value) => void apply({ desktop: { closeToTray: value } })}
                 label="Close to the system tray"
-                description="Keep the local core running when the main window closes."
+                description="Keep the local core running when the main window closes. The small robot launcher appears when IGRIS is minimized."
               />
-            </div>
-
-            <div className="settings-inline-actions">
-              <Button variant="default" size="sm" onClick={() => void toggleCompanion()}>
-                {settings.desktop.companionEnabled ? 'Hide companion' : 'Show companion'}
-              </Button>
-              <span className="settings-inline-note">
-                {companion?.open ? `Companion window ${companion.status}` : 'Companion is not open'}
-              </span>
             </div>
           </Card>
 
@@ -566,8 +530,7 @@ export function SettingsPage() {
               <div className="about-kv">
                 <KeyValue label="Started">{system ? fullTime(system.startedAt) : '—'}</KeyValue>
                 <KeyValue label="Provider">{health?.activeProvider ?? 'None'}</KeyValue>
-                <KeyValue label="Database">{health ? formatBytes(health.databaseBytes) : '—'}</KeyValue>
-                <KeyValue label="Companion">{health?.companionOpen ? 'Open' : 'Closed'}</KeyValue>
+                <KeyValue label="Database">{health ? formatBytes(health.databaseBytes) : '-'}</KeyValue>
                 <KeyValue label="Web browsing">{settings?.permissions.browser ? 'Default browser' : 'Off'}</KeyValue>
                 <KeyValue label="Mode">{system?.isPackaged ? 'Installed build' : 'Development'}</KeyValue>
               </div>

@@ -18,7 +18,7 @@ export type PermissionKey =
   | 'appLaunch'
   | 'browser'
   | 'screen'
-  | 'inputControl'
+  | 'voice'
 
 export interface AppearanceSettings {
   accent: AccentName
@@ -29,11 +29,8 @@ export interface AppearanceSettings {
 }
 
 export interface DesktopSettings {
-  companionEnabled: boolean
-  companionAlwaysOnTop: boolean
   launchAtStartup: boolean
   closeToTray: boolean
-  companionPosition: { x: number; y: number } | null
 }
 
 export type Permissions = Record<PermissionKey, boolean>
@@ -94,7 +91,6 @@ export interface HealthReport {
   databaseBytes: number
   uptimeSeconds: number
   pendingTasks: number
-  companionOpen: boolean
 }
 
 // ---------------------------------------------------------------- providers
@@ -411,6 +407,13 @@ export interface ScreenCapture {
   capturedAt: string
 }
 
+/** A base64 image attached to a tool result so the model can actually see it. */
+export interface ToolImage {
+  mimeType: string
+  /** Raw base64 bytes without a data-URL prefix. */
+  data: string
+}
+
 // ------------------------------------------------------------------ memory
 
 export interface MemoryItem {
@@ -434,14 +437,6 @@ export interface LogEntry {
 export interface ScreenStatus {
   supported: boolean
   detail: string
-}
-
-export interface CompanionState {
-  open: boolean
-  enabled: boolean
-  alwaysOnTop: boolean
-  status: 'idle' | 'listening' | 'thinking' | 'working' | 'success' | 'error'
-  statusText: string
 }
 
 export interface ExportResult {

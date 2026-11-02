@@ -11,6 +11,7 @@ import {
   Check,
   Copy,
   Edit3,
+  Mic,
   Pencil,
   RotateCcw,
   SendHorizontal,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useAppStore, selectLatestActiveRun, type ActiveRun } from '../lib/store'
 import { MessageText } from '../components/Markdown'
+import { IgrisCore } from '../components/IgrisCore'
 import {
   ToolTimeline,
   fromToolEvents,
@@ -32,8 +34,8 @@ import type { ChatMessage } from '@shared/types'
 const SUGGESTIONS = [
   'What can you do with the permissions I have enabled?',
   'Summarize the project I have open and find its biggest risks.',
-  'Open a web search in my default browser.',
-  'Help me plan the next hour with realistic priorities.'
+  'See my screen and tell me what is on it right now.',
+  'Open YouTube in my browser.'
 ]
 
 function copyText(text: string): void {
@@ -284,6 +286,13 @@ export function ChatPage() {
   const [showJump, setShowJump] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const voicePermission = settings?.permissions.voice ?? false
+  const [listening, setListening] = useState(false)
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const mediaChunksRef = useRef<Blob[]>([])
+  const mediaTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (conversationId) void loadConversation(conversationId)
@@ -377,6 +386,91 @@ export function ChatPage() {
     }
   }
 
+  useEffect(() => {
+    return () => {
+      if (mediaTimerRef.current) clearInterval(mediaTimerRef.current)
+      const recorder = mediaRecorderRef.current
+      if (recorder && recorder.state !== 'inactive') {
+        try {
+          recorder.stop()
+        } catch {
+          // Ignore teardown errors during unmount.
+        }
+      }
+    }
+  }, [])
+
+  const stopListening = async (): Promise<void> => {
+    const recorder = mediaRecorderRef.current
+    if (!recorder || !listening) return
+    setListening(false)
+    if (mediaTimerRef.current) {
+      clearInterval(mediaTimerRef.current)
+      mediaTimerRef.current = null
+    }
+    try {
+      recorder.stop()
+    } catch {
+      // Already stopped.
+    }
+  }
+
+  const startListening = async (): Promise<void> => {
+    const bridge = window.igris
+    if (!bridge || listening || latestActiveRun) return
+    if (!voicePermission) {
+      notify('warning', 'Voice input is off', 'Enable microphone access in Settings → Permissions.')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      mediaRecorderRef.current = recorder
+      mediaStreamRef.current = stream
+      mediaChunksRef.current = []
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) mediaChunksRef.current.push(event.data)
+      }
+      recorder.onstop = async (): Promise<void> => {
+        const activeRecorder = mediaRecorderRef.current
+        mediaRecorderRef.current = null
+        setListening(false)
+        if (mediaTimerRef.current) {
+          clearInterval(mediaTimerRef.current)
+          mediaTimerRef.current = null
+        }
+        const tracks = stream.getTracks()
+        for (const track of tracks) track.stop()
+        mediaStreamRef.current = null
+        const blob = new Blob(mediaChunksRef.current, { type: activeRecorder?.mimeType || 'audio/webm' })
+        if (blob.size > 0) {
+          const audioBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+            reader.onerror = () => reject(reader.error)
+            reader.readAsDataURL(blob)
+          })
+          const text = await bridge.voice.transcribe({ audioBase64, mimeType: blob.type || 'audio/webm' })
+          const clean = text.text.trim()
+          if (clean) {
+            try {
+              await sendMessage(clean, preferredWorkspaceId)
+            } catch {
+              // Surface failures through the normal error flow on the next send.
+            }
+          }
+        }
+      }
+      recorder.start(250)
+      setListening(true)
+      setRecordingSeconds(0)
+      mediaTimerRef.current = setInterval(() => setRecordingSeconds((seconds) => seconds + 1), 1000)
+    } catch (error) {
+      notify('error', 'Microphone access failed', error instanceof Error ? error.message : undefined)
+    }
+  }
+
   const openRename = (id: string, title: string): void => {
     setRenameTarget({ id, title })
     setRenameValue(title)
@@ -410,6 +504,16 @@ export function ChatPage() {
     <div className="chat-page">
 
       <section className="chat-main">
+        <div className="chat-core-layer" aria-hidden>
+          <IgrisCore
+            accent={settings?.appearance?.accent}
+            quality={settings?.appearance?.quality}
+            intensity={settings?.appearance?.animationIntensity}
+            reducedMotion={settings?.appearance?.reducedMotion}
+            enabled={settings?.appearance?.show3d}
+            compact
+          />
+        </div>
         <header className="chat-header">
           <div className="chat-header-copy">
             <div className="eyebrow">Conversation</div>
@@ -602,6 +706,15 @@ export function ChatPage() {
                 </label>
               </div>
               <div className="composer-actions">
+                <IconButton
+                  label={listening ? 'Stop voice input' : 'Start voice input'}
+                  size="sm"
+                  className={listening ? 'is-listening' : undefined}
+                  onClick={() => void (listening ? stopListening() : startListening())}
+                  disabled={!configured || latestActiveRun !== null}
+                >
+                  {listening ? <Square size={12} /> : <Mic size={13} />}
+                </IconButton>
                 {latestActiveRun ? (
                   <Button
                     variant="danger"
@@ -626,9 +739,16 @@ export function ChatPage() {
             </div>
           </div>
           <div className="composer-footnote">
-            <span>
-              <Check size={11} /> Cloud responses may be inaccurate. Verify consequential actions.
-            </span>
+            {listening ? (
+              <span className="composer-recording">
+                <span className="recording-dot" aria-hidden />
+                Listening… {recordingSeconds}s — tap the microphone to stop
+              </span>
+            ) : (
+              <span>
+                <Check size={11} /> Cloud responses may be inaccurate. Verify consequential actions.
+              </span>
+            )}
             <span className="mono">{settings?.ai.streaming ? 'STREAM ON' : 'STREAM OFF'}</span>
           </div>
         </footer>

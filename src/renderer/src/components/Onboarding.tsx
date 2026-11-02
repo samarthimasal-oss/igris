@@ -36,7 +36,6 @@ export function Onboarding() {
   const open = useAppStore((state) => state.onboardingOpen)
   const settings = useAppStore((state) => state.settings)
   const providers = useAppStore((state) => state.providers)
-  const companion = useAppStore((state) => state.companion)
   const completeOnboarding = useAppStore((state) => state.completeOnboarding)
   const closeOnboarding = useAppStore((state) => state.closeOnboarding)
   const updateSettings = useAppStore((state) => state.updateSettings)
@@ -147,8 +146,8 @@ export function Onboarding() {
                 </div>
                 <div>
                   <span>03</span>
-                  <strong>Always present</strong>
-                  <p>A movable companion stays above your work without taking over the screen.</p>
+                  <strong>Real sight and voice</strong>
+                  <p>Ask IGRIS to see your screen or speak to it — every capability stays permissioned and audited.</p>
                 </div>
               </div>
             </div>
@@ -233,7 +232,7 @@ export function Onboarding() {
           {step === 3 ? (
             <div className="onboarding-content">
               <span className="eyebrow">Systems nominal</span>
-              <h1>Your command deck is ready.</h1>
+              <h1>Your assistant is ready.</h1>
               <p className="onboarding-lead">
                 IGRIS is assembled and every subsystem is local. Start with a question, a
                 project, or a task.
@@ -252,9 +251,9 @@ export function Onboarding() {
                   <small>Revocable at any time</small>
                 </div>
                 <div>
-                  <span>Companion</span>
-                  <strong>{companion?.enabled ? 'On desktop' : 'Standing by'}</strong>
-                  <small>Always-on-top window</small>
+                  <span>Voice</span>
+                  <strong>Microphone ready</strong>
+                  <small>Hold the mic button in Conversation</small>
                 </div>
               </div>
               <div className="onboarding-finish">

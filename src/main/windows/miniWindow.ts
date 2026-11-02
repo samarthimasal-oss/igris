@@ -6,17 +6,6 @@ import { miniPageUrl, preloadPath } from './paths'
 const MINI_SIZE = 112
 const EDGE_MARGIN = 18
 
-type Bounds = { x: number; y: number; width: number; height: number }
-
-function overlaps(a: Bounds, b: Bounds, gap: number): boolean {
-  return (
-    a.x < b.x + b.width + gap &&
-    a.x + a.width + gap > b.x &&
-    a.y < b.y + b.height + gap &&
-    a.y + a.height + gap > b.y
-  )
-}
-
 export class MiniLauncherManager {
   private win: BrowserWindow | null = null
   private quitting = false
@@ -25,8 +14,7 @@ export class MiniLauncherManager {
 
   constructor(
     private readonly roles: Map<number, WindowRole>,
-    private readonly logger: Logger,
-    private readonly avoidBounds: () => Bounds | null
+    private readonly logger: Logger
   ) {}
 
   setQuitting(value: boolean): void {
@@ -35,16 +23,8 @@ export class MiniLauncherManager {
 
   private defaultPosition(): { x: number; y: number } {
     const area = screen.getPrimaryDisplay().workArea
-    let x = area.x + area.width - MINI_SIZE - EDGE_MARGIN
-    let y = area.y + area.height - MINI_SIZE - EDGE_MARGIN
-    const avoid = this.avoidBounds()
-    if (avoid && overlaps({ x, y, width: MINI_SIZE, height: MINI_SIZE }, avoid, 10)) {
-      x = avoid.x - MINI_SIZE - 12
-      y = Math.min(
-        Math.max(avoid.y + avoid.height - MINI_SIZE, area.y + EDGE_MARGIN),
-        area.y + area.height - MINI_SIZE - EDGE_MARGIN
-      )
-    }
+    const x = area.x + area.width - MINI_SIZE - EDGE_MARGIN
+    const y = area.y + area.height - MINI_SIZE - EDGE_MARGIN
     return { x: Math.round(x), y: Math.round(y) }
   }
 

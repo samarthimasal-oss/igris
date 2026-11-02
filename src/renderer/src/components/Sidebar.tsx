@@ -1,7 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Activity,
-  Bot,
   Cpu,
   FolderKanban,
   History,
@@ -19,7 +18,7 @@ const NAV_GROUPS = [
   {
     label: 'Work',
     items: [
-      { to: '/', label: 'Command deck', icon: Home, end: true },
+      { to: '/', label: 'Home', icon: Home, end: true },
       { to: '/chat', label: 'Conversation', icon: MessageSquare },
       { to: '/projects', label: 'Projects', icon: FolderKanban }
     ]
@@ -53,26 +52,12 @@ export function Sidebar() {
   const navigate = useNavigate()
   const tasks = useAppStore((state) => state.tasks)
   const providers = useAppStore((state) => state.providers)
-  const companion = useAppStore((state) => state.companion)
   const health = useAppStore((state) => state.health)
   const newConversation = useAppStore((state) => state.newConversation)
-  const refreshCompanion = useAppStore((state) => state.refreshCompanion)
   const notify = useAppStore((state) => state.notify)
 
   const activeTasks = tasks.filter((task) => ACTIVE_STATUSES.has(task.status)).length
   const provider = providers.find((item) => item.isDefault) ?? providers[0] ?? null
-  const companionLive = Boolean(companion?.enabled)
-
-  const toggleCompanion = async (): Promise<void> => {
-    if (!window.igris) return
-    try {
-      if (companionLive) await window.igris.companion.hide()
-      else await window.igris.companion.show()
-      await refreshCompanion()
-    } catch (error) {
-      notify('error', 'Companion unavailable', error instanceof Error ? error.message : undefined)
-    }
-  }
 
   return (
     <aside className="sidebar">
@@ -117,17 +102,6 @@ export function Sidebar() {
       </nav>
 
       <div className="sidebar-footer">
-        <button type="button" className="companion-chip" onClick={() => void toggleCompanion()}>
-          <span className={clsx('companion-chip-orb', companionLive && 'is-live')}>
-            <Bot size={15} />
-          </span>
-          <span className="companion-chip-copy">
-            <strong>Companion</strong>
-            <small>{companionLive ? companion?.statusText ?? 'On desktop' : 'Hidden'}</small>
-          </span>
-          <span className={clsx('status-led', companionLive && 'is-live')} />
-        </button>
-
         <div className="sidebar-system">
           <div className="sidebar-system-row">
             <span className="sidebar-system-label">Provider</span>

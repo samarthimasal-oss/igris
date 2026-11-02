@@ -13,6 +13,7 @@ import type {
 
 type GeminiPart =
   | { text: string }
+  | { inlineData: { mimeType: string; data: string } }
   | { functionCall: { name: string; args: Record<string, unknown> } }
   | { functionResponse: { name: string; response: Record<string, unknown> } }
 
@@ -49,14 +50,21 @@ function mapContents(messages: ModelMessage[]): GeminiContent[] {
 
   for (const message of messages) {
     if (message.role === 'tool') {
-      push('user', [
+      const parts: GeminiPart[] = [
         {
           functionResponse: {
             name: message.toolName ?? 'tool',
             response: { result: message.content || '(no output)' }
           }
         }
-      ])
+      ]
+      // Attach what IGRIS saw (screenshots) so the model can actually look.
+      for (const image of message.images ?? []) {
+        if (image.mimeType && image.data) {
+          parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } })
+        }
+      }
+      push('user', parts)
       continue
     }
     if (message.role === 'assistant') {

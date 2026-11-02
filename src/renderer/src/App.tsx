@@ -105,7 +105,6 @@ function MainApp() {
   const bootstrap = useAppStore((state) => state.bootstrap)
   const handleChatEvent = useAppStore((state) => state.handleChatEvent)
   const handleTaskEvent = useAppStore((state) => state.handleTaskEvent)
-  const setCompanion = useAppStore((state) => state.setCompanion)
   const setComposerDraft = useAppStore((state) => state.setComposerDraft)
   const newConversation = useAppStore((state) => state.newConversation)
   const consumeFocus = useAppStore((state) => state.consumeFocus)
@@ -120,7 +119,6 @@ function MainApp() {
     const unsubscribers = [
       bridge.chat.onEvent((event) => handleChatEvent(event)),
       bridge.tasks.onEvent(() => handleTaskEvent()),
-      bridge.companion.onEvent((event) => setCompanion(event.state)),
       bridge.events.onDraft((event) => {
         setComposerDraft(event.text)
         navigate('/chat')
@@ -140,7 +138,6 @@ function MainApp() {
     handleChatEvent,
     handleTaskEvent,
     navigate,
-    setCompanion,
     setComposerDraft
   ])
 

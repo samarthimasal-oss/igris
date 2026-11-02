@@ -12,11 +12,8 @@ export const DEFAULT_SETTINGS: Settings = {
     show3d: true
   },
   desktop: {
-    companionEnabled: true,
-    companionAlwaysOnTop: true,
     launchAtStartup: false,
-    closeToTray: false,
-    companionPosition: null
+    closeToTray: false
   },
   permissions: {
     filesystem: false,
@@ -26,7 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
     appLaunch: false,
     browser: false,
     screen: false,
-    inputControl: false
+    voice: false
   },
   privacy: {
     diagnostics: true,
@@ -193,13 +190,15 @@ export const PERMISSION_META: Record<
     sensitive: true
   },
   screen: {
-    label: 'Screen access',
-    description: 'Capture a screenshot of the current screen when explicitly requested.',
+    label: 'See my screen',
+    description:
+      'Let IGRIS look at your desktop — everything visible, including background windows — when you ask it to.',
     sensitive: true
   },
-  inputControl: {
-    label: 'Keyboard and mouse control',
-    description: 'Type text, press keys and click at coordinates. Experimental — verify before use.',
+  voice: {
+    label: 'Voice input',
+    description:
+      'Let IGRIS use your microphone and transcribe speech with your cloud provider. Audio is used only for transcription.',
     sensitive: true
   }
 }

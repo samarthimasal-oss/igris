@@ -68,22 +68,12 @@ await page.evaluate(() => {
 })
 await page.waitForTimeout(400)
 
-// Companion
-await page.evaluate(async () => {
-  await window.igris.companion.show()
+await page.evaluate(() => {
+  window.location.hash = '#/chat'
 })
-await page.waitForTimeout(1400)
-const windows = app.windows()
-console.log(`windows: ${windows.length}`)
-const companion = windows.find((candidate) => candidate.url().includes('companion.html'))
-if (companion) {
-  await companion.waitForLoadState('domcontentloaded')
-  await companion.waitForTimeout(900)
-  await companion.screenshot({ path: join(outDir, '11-companion.png'), omitBackground: true })
-  console.log('captured 11-companion.png')
-} else {
-  console.log('companion window not found')
-}
+await page.waitForTimeout(2200)
+await page.screenshot({ path: join(outDir, '11-chat.png'), animations: 'disabled' })
+console.log('captured 11-chat.png')
 
 // Minimized launcher.
 await app.evaluate(({ BrowserWindow }) => {

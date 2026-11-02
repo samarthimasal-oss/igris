@@ -11,7 +11,6 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   IPC_CHAT_EVENT,
-  IPC_COMPANION_EVENT,
   IPC_TASK_EVENT
 } from '@shared/ipc'
 import type { ChatEvent, Settings } from '@shared/types'
@@ -34,14 +33,13 @@ import { FileService } from './services/fileService'
 import { TerminalService } from './services/terminalService'
 import { AppService } from './services/appService'
 import { ScreenService } from './services/screenService'
-import { InputService } from './services/inputService'
+import { VoiceService } from './services/voiceService'
 import { BrowserService } from './services/browserService'
 import { TaskService } from './tasks/taskService'
 import { createToolRegistry } from './tools/registry'
 import { ToolRuntime } from './tools/toolRuntime'
 import { ChatEngine } from './ai/chatEngine'
 import { MainWindowManager } from './windows/mainWindow'
-import { CompanionManager } from './windows/companionWindow'
 import { MiniLauncherManager } from './windows/miniWindow'
 import { createIpcDispatcher, type AppContext } from './ipc'
 import { TRAY_ICON_PNG } from './trayIcon'
@@ -52,7 +50,6 @@ const e2e = Boolean(process.env.IGRIS_E2E)
 let db: Database | null = null
 let tray: Tray | null = null
 let mainWindow: MainWindowManager | null = null
-let companion: CompanionManager | null = null
 let miniLauncher: MiniLauncherManager | null = null
 let chat: ChatEngine | null = null
 let settingsService: SettingsService | null = null
@@ -61,7 +58,6 @@ let logger: Logger | null = null
 let dispatcherChannel: string | null = null
 let shuttingDown = false
 let finished = false
-let companionResetTimer: NodeJS.Timeout | null = null
 
 app.setName('IGRIS')
 
@@ -108,14 +104,11 @@ async function start(): Promise<void> {
     event.preventDefault()
     if (shuttingDown) return
     shuttingDown = true
-    if (companionResetTimer) clearTimeout(companionResetTimer)
     try {
       mainWindow?.setQuitting(true)
-      companion?.setQuitting(true)
       miniLauncher?.setQuitting(true)
       chat?.cancelAll('shutdown')
       miniLauncher?.close()
-      companion?.close()
     } catch {
       // Continue shutdown even if a window is already gone.
     }
@@ -169,16 +162,13 @@ async function boot(): Promise<void> {
   logger = appLogger
   const credentials = new CredentialStore()
   const providers = new ProviderService(providerRepo, credentials, appLogger)
-  const roles = new Map<number, 'main' | 'companion' | 'mini'>()
+  const voice = new VoiceService(providers, appLogger)
+  const roles = new Map<number, 'main' | 'mini'>()
 
   const main = new MainWindowManager(roles, settings, appLogger)
   mainWindow = main
-  const companionManager = new CompanionManager(roles, settings, appLogger, (event) => {
-    main.send(IPC_COMPANION_EVENT, event)
-  })
-  companion = companionManager
 
-  const mini = new MiniLauncherManager(roles, appLogger, () => companionManager.getBounds())
+  const mini = new MiniLauncherManager(roles, appLogger)
   miniLauncher = mini
   main.setMinimizeListener((minimized) => {
     if (minimized) mini.show()
@@ -191,7 +181,6 @@ async function boot(): Promise<void> {
   const terminal = new TerminalService(workspaceRepo, appLogger)
   const apps = new AppService()
   const screen = new ScreenService(screenshotsDir)
-  const input = new InputService()
 
   const tasks = new TaskService(taskRepo, (taskId) => {
     main.send(IPC_TASK_EVENT, { type: 'changed', taskId })
@@ -202,7 +191,6 @@ async function boot(): Promise<void> {
     terminal,
     apps,
     screen,
-    input,
     browser: browserService,
     memories: memoryRepo,
     settings: () => settings.get(),
@@ -217,7 +205,6 @@ async function boot(): Promise<void> {
 
   const emitChat = (event: ChatEvent): void => {
     main.send(IPC_CHAT_EVENT, event)
-    updateCompanionStatus(event)
   }
 
   const chatEngine = new ChatEngine({
@@ -255,9 +242,8 @@ async function boot(): Promise<void> {
     terminal,
     apps,
     screen,
-    input,
+    voice,
     mainWindow: main,
-    companion: companionManager,
     exportBundle: buildExportBundle
   }
   const dispatcher = createIpcDispatcher(context)
@@ -275,11 +261,6 @@ async function boot(): Promise<void> {
   let previousDesktop = settings.get().desktop
   settings.on('changed', (next: Settings) => {
     try {
-      if (next.desktop.companionEnabled !== previousDesktop.companionEnabled) {
-        companionManager.applySettings()
-      } else if (next.desktop.companionAlwaysOnTop !== previousDesktop.companionAlwaysOnTop) {
-        companionManager.applyAlwaysOnTop()
-      }
       if (next.desktop.launchAtStartup !== previousDesktop.launchAtStartup) {
         applyStartup(next.desktop.launchAtStartup)
       }
@@ -292,12 +273,7 @@ async function boot(): Promise<void> {
   applyStartup(settings.get().desktop.launchAtStartup)
 
   main.show('/')
-  createTray(main, settings, companionManager)
-  if (settings.get().desktop.companionEnabled) {
-    setTimeout(() => {
-      if (!shuttingDown) companionManager.applySettings()
-    }, 900)
-  }
+  createTray(main)
   appLogger.info(
     'core',
     `IGRIS ${app.getVersion()} started on Electron ${process.versions.electron}; data at ${dataDir}.`
@@ -305,59 +281,8 @@ async function boot(): Promise<void> {
   if (e2e) appLogger.info('core', 'Running in automated test mode.')
 }
 
-function updateCompanionStatus(event: ChatEvent): void {
-  if (!companion) return
-  if (companionResetTimer) {
-    clearTimeout(companionResetTimer)
-    companionResetTimer = null
-  }
-  const resetSoon = (): void => {
-    companionResetTimer = setTimeout(() => {
-      if (!chat?.activeRunIds().length) companion?.setStatus('idle', 'Standing by')
-    }, 5000)
-  }
-  switch (event.type) {
-    case 'started':
-      companion.setStatus('thinking', `Reasoning with ${event.providerName}`)
-      break
-    case 'status':
-      if (event.status === 'streaming') companion.setStatus('working', 'Composing a response')
-      else if (event.status === 'working') companion.setStatus('working', event.detail ?? 'Using tools')
-      else companion.setStatus('thinking', 'Thinking')
-      break
-    case 'tool':
-      if (event.tool.status === 'awaiting_confirmation') {
-        companion.setStatus('thinking', 'Waiting for your approval')
-      } else if (event.tool.status === 'completed') {
-        companion.setStatus('working', `${event.tool.title} complete`)
-      } else {
-        companion.setStatus('working', event.tool.title)
-      }
-      break
-    case 'confirmation':
-      companion.setStatus('thinking', 'Approval required')
-      break
-    case 'done':
-      companion.setStatus('success', 'Response ready')
-      resetSoon()
-      break
-    case 'failed':
-      companion.setStatus('error', 'Task failed')
-      resetSoon()
-      break
-    case 'cancelled':
-      companion.setStatus('idle', 'Stopped')
-      resetSoon()
-      break
-    default:
-      break
-  }
-}
-
 function createTray(
-  main: MainWindowManager,
-  settings: SettingsService,
-  companionManager: CompanionManager
+  main: MainWindowManager
 ): void {
   try {
     const image = nativeImage
@@ -374,10 +299,6 @@ function createTray(
         label: 'New conversation',
         click: () => main.show('/chat')
       },
-      {
-        label: 'Show companion',
-        click: () => companionManager.show()
-      },
       { type: 'separator' },
       {
         label: 'Settings',
@@ -392,9 +313,6 @@ function createTray(
     tray.setContextMenu(menu)
     tray.on('click', () => main.show('/'))
     tray.on('double-click', () => main.show('/'))
-    if (!settings.get().desktop.closeToTray) {
-      // The tray is still available, but closing the window follows the user's preference.
-    }
   } catch (error) {
     logger?.warn('tray', `The system tray icon could not be created: ${String(error)}`)
   }
@@ -432,8 +350,13 @@ function applyCsp(): void {
 
 function denyDefaultSessionPermissions(): void {
   try {
-    session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-    session.defaultSession.setPermissionCheckHandler(() => false)
+    // Deny everything except microphone capture, which the Conversation page
+    // needs for voice transcription. The IGRIS-level "Voice input" permission
+    // gates whether the mic button is offered at all.
+    session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) =>
+      callback(permission === 'media')
+    )
+    session.defaultSession.setPermissionCheckHandler((_contents, permission) => permission === 'media')
   } catch {
     // Permission APIs are unavailable on some Windows configurations.
   }

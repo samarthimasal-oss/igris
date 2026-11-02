@@ -4,8 +4,8 @@ import {
   Activity,
   ArrowRight,
   ArrowUpRight,
-  Bot,
   Cpu,
+  Eye,
   FolderKanban,
   Globe2,
   MessageSquare,
@@ -14,19 +14,19 @@ import {
   Sparkles,
   Terminal,
   Wrench,
+  Youtube,
   Zap
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
-import { IgrisCore } from '../components/IgrisCore'
 import { Badge, Button, Card } from '../components/ui'
 import { formatBytes, greeting, plural, relativeTime, truncate, uptime } from '../lib/format'
 import clsx from 'clsx'
 
 const QUICK_PROMPTS = [
-  { icon: Sparkles, label: 'Plan my day', prompt: 'Help me plan my day. Ask me what is on my plate, then propose a realistic sequence.' },
-  { icon: FolderKanban, label: 'Review a project', prompt: 'Review the project I have open. Read its structure, identify risks, and propose the first three improvements.' },
-  { icon: Globe2, label: 'Search the web', prompt: 'Open a DuckDuckGo search in my default browser for the topic I give you.' },
-  { icon: Terminal, label: 'Run a command', prompt: 'Run the test suite for my current project and explain any failures.' }
+  { icon: Eye, label: 'See my screen', prompt: 'See my screen and tell me exactly what is on it — the focused app and anything in the background.' },
+  { icon: Youtube, label: 'Open YouTube', prompt: 'Open YouTube in my browser.' },
+  { icon: FolderKanban, label: 'Work on my open code', prompt: 'Look at my screen, find the code I have open, and improve it. Do not ask me for a path.' },
+  { icon: Globe2, label: 'Search the web', prompt: 'Search the web in my default browser for a topic I give you.' }
 ]
 
 const CAPABILITIES = [
@@ -47,7 +47,7 @@ const CAPABILITIES = [
   {
     icon: Wrench,
     title: 'Act on the machine',
-    description: 'Terminal, applications, screen capture, browser, and native input — permissioned.',
+    description: 'Terminal, applications, real screen vision, browser, and voice input — permissioned.',
     to: '/tools',
     action: 'Inspect toolkit'
   }
@@ -65,10 +65,7 @@ export function HomePage() {
   const conversations = useAppStore((state) => state.conversations)
   const health = useAppStore((state) => state.health)
   const system = useAppStore((state) => state.system)
-  const companion = useAppStore((state) => state.companion)
   const setComposerDraft = useAppStore((state) => state.setComposerDraft)
-  const refreshCompanion = useAppStore((state) => state.refreshCompanion)
-  const notify = useAppStore((state) => state.notify)
   const [prompt, setPrompt] = useState('')
 
   const appearance = settings?.appearance
@@ -96,22 +93,11 @@ export function HomePage() {
     navigate('/chat')
   }
 
-  const toggleCompanion = async (): Promise<void> => {
-    if (!window.igris) return
-    try {
-      if (companion?.enabled) await window.igris.companion.hide()
-      else await window.igris.companion.show()
-      await refreshCompanion()
-    } catch (error) {
-      notify('error', 'Companion unavailable', error instanceof Error ? error.message : undefined)
-    }
-  }
-
   return (
     <div className="page home-page">
       <header className="home-topline">
         <div>
-          <div className="eyebrow">Command deck</div>
+          <div className="eyebrow">Home base</div>
           <h1 className="home-greeting">
             {greeting()}.
             <span> IGRIS is standing by.</span>
@@ -176,36 +162,6 @@ export function HomePage() {
               <span>
                 <Cpu size={12} /> Cloud models only
               </span>
-            </div>
-          </div>
-
-          <div className="hero-core">
-            <div className="hero-core-grid" aria-hidden />
-            <div className="core-readout core-readout-tl">
-              <span>CORE</span>
-              <strong>IGRIS / 01</strong>
-            </div>
-            <div className="core-readout core-readout-tr">
-              <span className={clsx('status-led', health?.checks.some((check) => check.status === 'error') ? 'is-error' : 'is-live')} />
-              {activeProvider ? 'LINK READY' : 'STANDBY'}
-            </div>
-            <IgrisCore
-              accent={appearance?.accent}
-              quality={appearance?.quality}
-              intensity={appearance?.animationIntensity}
-              reducedMotion={appearance?.reducedMotion}
-              enabled={appearance?.show3d}
-            />
-            <div className="core-readout core-readout-bl">
-              <span>MODE</span>
-              <strong>Cloud intelligence</strong>
-            </div>
-            <div className="core-readout core-readout-br">
-              <span>COMPANION</span>
-              <button type="button" className="core-link" onClick={() => void toggleCompanion()}>
-                <Bot size={12} />
-                {companion?.enabled ? 'On desktop' : 'Summon'}
-              </button>
             </div>
           </div>
         </Card>
