@@ -4,6 +4,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate
 } from 'react-router-dom'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
@@ -31,7 +32,7 @@ function BootScreen() {
         <span className="boot-orb-core" />
       </div>
       <div className="boot-brand">IGRIS</div>
-      <div className="boot-caption">Assembling the local core</div>
+      <div className="boot-caption">Initializing terminal core</div>
       <div className="boot-track">
         <span />
       </div>
@@ -97,6 +98,7 @@ class AppErrorBoundary extends Component<
 
 function MainApp() {
   const navigate = useNavigate()
+  const location = useLocation()
   const ready = useAppStore((state) => state.ready)
   const booting = useAppStore((state) => state.booting)
   const bootError = useAppStore((state) => state.bootError)
@@ -144,8 +146,8 @@ function MainApp() {
   useEffect(() => {
     if (!focusConversationId) return
     const id = consumeFocus()
-    if (id) navigate(`/chat/${id}`)
-  }, [focusConversationId, consumeFocus, navigate])
+    if (id && location.pathname.startsWith('/chat')) navigate(`/chat/${id}`)
+  }, [focusConversationId, consumeFocus, navigate, location.pathname])
 
   useEffect(() => {
     const root = document.documentElement

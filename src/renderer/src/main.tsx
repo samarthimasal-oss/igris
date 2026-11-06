@@ -4,6 +4,7 @@ import '@fontsource-variable/manrope'
 import '@fontsource-variable/sora'
 import '@fontsource-variable/jetbrains-mono'
 import './styles.css'
+import './terminal.css'
 import { App } from './App'
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

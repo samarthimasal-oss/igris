@@ -1,23 +1,27 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Minimize2, Square, X } from 'lucide-react'
+import clsx from 'clsx'
+import { useAppStore } from '../lib/store'
 
 const TITLES: Array<{ match: (path: string) => boolean; label: string }> = [
-  { match: (path) => path === '/', label: 'Home' },
-  { match: (path) => path.startsWith('/chat/'), label: 'Conversation' },
-  { match: (path) => path.startsWith('/chat'), label: 'Conversation' },
-  { match: (path) => path.startsWith('/projects'), label: 'Projects' },
-  { match: (path) => path.startsWith('/computer'), label: 'Computer control' },
-  { match: (path) => path.startsWith('/models'), label: 'AI models' },
-  { match: (path) => path.startsWith('/tools'), label: 'Toolkit' },
-  { match: (path) => path.startsWith('/activity'), label: 'Activity' },
-  { match: (path) => path.startsWith('/settings'), label: 'Settings' }
+  { match: (path) => path === '/', label: 'home' },
+  { match: (path) => path.startsWith('/chat/'), label: 'conversation' },
+  { match: (path) => path.startsWith('/chat'), label: 'conversation' },
+  { match: (path) => path.startsWith('/projects'), label: 'projects' },
+  { match: (path) => path.startsWith('/computer'), label: 'computer' },
+  { match: (path) => path.startsWith('/models'), label: 'providers' },
+  { match: (path) => path.startsWith('/tools'), label: 'tools' },
+  { match: (path) => path.startsWith('/activity'), label: 'activity' },
+  { match: (path) => path.startsWith('/settings'), label: 'settings' },
+  { match: (path) => path.startsWith('/history'), label: 'history' }
 ]
 
 export function Titlebar() {
   const location = useLocation()
+  const health = useAppStore((state) => state.health)
   const [maximized, setMaximized] = useState(false)
-  const label = TITLES.find((entry) => entry.match(location.pathname))?.label ?? 'IGRIS'
+  const label = TITLES.find((entry) => entry.match(location.pathname))?.label ?? 'igris'
 
   const control = async (action: 'minimize' | 'maximize' | 'close'): Promise<void> => {
     try {
@@ -38,20 +42,20 @@ export function Titlebar() {
       }}
     >
       <div className="titlebar-brand">
-        <span className="brand-mark" aria-hidden>
+        <span className="brand-mark brand-mark-small" aria-hidden>
           <span className="brand-ring" />
           <span className="brand-core" />
         </span>
         <span className="brand-name">IGRIS</span>
-        <span className="brand-tag">PERSONAL INTELLIGENCE</span>
+        <span className="brand-tag">TERMINAL</span>
       </div>
       <div className="titlebar-center">
-        <span className="titlebar-page">{label}</span>
+        <span className="titlebar-page">~/{label}</span>
       </div>
       <div className="titlebar-right">
         <span className="titlebar-status">
-          <span className="status-led" />
-          LOCAL CORE
+          <span className={clsx('status-led', health ? 'is-live' : '')} />
+          {health ? 'LOCAL CORE' : 'BOOTING'}
         </span>
         <div className="window-controls">
           <button

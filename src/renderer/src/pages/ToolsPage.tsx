@@ -1,118 +1,130 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  AppWindow,
   Brain,
+  Code2,
   Cpu,
+  Files,
   FolderKanban,
   Globe2,
   Lock,
+  Mic,
   Monitor,
   RefreshCw,
   Search,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
+  Terminal,
   Wrench,
-  Files,
   X
 } from 'lucide-react'
 import { PERMISSION_META } from '@shared/defaults'
-import type { ToolCategory, ToolInfo } from '@shared/types'
+import type { ToolInfo } from '@shared/types'
 import { useAppStore } from '../lib/store'
 import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  PageHeader
-} from '../components/ui'
+  CAPABILITY_GROUPS,
+  capabilityPermissionOn,
+  toolsForCapability,
+  type CapabilityDefinition
+} from '../lib/capabilities'
+import { Alert, Button, EmptyState, PageHeader } from '../components/ui'
 import clsx from 'clsx'
 
-const CATEGORIES: Array<{ key: ToolCategory | 'all'; label: string; icon: typeof Files }> = [
-  { key: 'all', label: 'All tools', icon: Wrench },
-  { key: 'files', label: 'Files', icon: Files },
-  { key: 'projects', label: 'Projects', icon: FolderKanban },
-  { key: 'computer', label: 'Computer', icon: Monitor },
-  { key: 'browser', label: 'Browser', icon: Globe2 },
-  { key: 'memory', label: 'Memory', icon: Brain },
-  { key: 'system', label: 'System', icon: Cpu }
-]
-
-const CATEGORY_ICON: Record<ToolCategory, typeof Files> = {
-  files: Files,
+const CAPABILITY_ICON: Record<string, typeof Files> = {
   projects: FolderKanban,
-  computer: Monitor,
+  files: Files,
+  coding: Code2,
+  terminal: Terminal,
+  apps: AppWindow,
+  screen: Monitor,
   browser: Globe2,
+  voice: Mic,
   memory: Brain,
   system: Cpu
 }
+
+const RISK_TONE = {
+  low: 'is-ok',
+  medium: 'is-warn',
+  high: 'is-danger'
+} as const
 
 export function ToolsPage() {
   const navigate = useNavigate()
   const tools = useAppStore((state) => state.tools)
   const settings = useAppStore((state) => state.settings)
+  const providers = useAppStore((state) => state.providers)
   const refreshTools = useAppStore((state) => state.refreshTools)
-  const [category, setCategory] = useState<ToolCategory | 'all'>('all')
+  const [group, setGroup] = useState<string>('all')
   const [query, setQuery] = useState('')
 
   useEffect(() => {
     void refreshTools()
   }, [refreshTools])
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return tools.filter((tool) => {
-      if (category !== 'all' && tool.category !== category) return false
-      if (!needle) return true
-      return (
-        tool.title.toLowerCase().includes(needle) ||
-        tool.description.toLowerCase().includes(needle) ||
-        tool.id.toLowerCase().includes(needle)
-      )
-    })
-  }, [tools, category, query])
-
-  const grouped = useMemo(() => {
-    const map = new Map<ToolCategory, ToolInfo[]>()
-    for (const tool of filtered) {
-      const list = map.get(tool.category) ?? []
-      list.push(tool)
-      map.set(tool.category, list)
-    }
-    return map
-  }, [filtered])
-
-  const available = tools.filter((tool) => tool.available).length
+  const defaultProvider = providers.find((item) => item.isDefault) ?? providers[0] ?? null
+  const permissions = settings?.permissions
+  const voiceEnabled = Boolean(permissions?.voice)
+  const voiceProviderReady = defaultProvider?.kind === 'gemini'
+  const usable = tools.filter((tool) => tool.available).length
   const locked = tools.filter(
-    (tool) => tool.permission && !settings?.permissions[tool.permission]
+    (tool) => tool.permission && !permissions?.[tool.permission]
   ).length
-
-  const enabledPermissionCount = settings
-    ? Object.values(settings.permissions).filter(Boolean).length
+  const grantedPermissions = permissions
+    ? Object.values(permissions).filter(Boolean).length
     : 0
+
+  const needle = query.trim().toLowerCase()
+  const matches = (tool: ToolInfo): boolean => {
+    if (!needle) return true
+    return (
+      tool.title.toLowerCase().includes(needle) ||
+      tool.description.toLowerCase().includes(needle) ||
+      tool.id.toLowerCase().includes(needle)
+    )
+  }
+
+  const groups = useMemo(() => {
+    return CAPABILITY_GROUPS.map((definition) => {
+      const members = toolsForCapability(definition, tools).filter(matches)
+      return {
+        definition,
+        members,
+        permissionOn: capabilityPermissionOn(definition, permissions),
+        allMembers: toolsForCapability(definition, tools)
+      }
+    }).filter((entry) => (group === 'all' || entry.definition.key === group) && (
+      entry.members.length > 0 || (entry.definition.key === 'voice' && !needle)
+    ))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tools, permissions, group, needle])
+
+  const openPermission = (definition: CapabilityDefinition): void => {
+    navigate('/settings', { state: { section: 'settings-permissions' } })
+  }
 
   return (
     <div className="page tools-page">
       <PageHeader
-        eyebrow="Capability surface"
-        title="Toolkit"
-        description="Every capability IGRIS can invoke, with its risk level, permission, and current availability."
+        eyebrow="CAPABILITY MAP"
+        title="Tools"
+        description="Every action IGRIS can invoke, grouped by capability. Tools are planned in a conversation and paused for approval when the risk requires it. This page is not a remote shell."
         actions={
           <>
             <Button
               variant="ghost"
-              icon={<RefreshCw size={15} />}
+              icon={<RefreshCw size={14} />}
               onClick={() => void refreshTools()}
             >
               Refresh
             </Button>
             <Button
               variant="primary"
-              icon={<ShieldCheck size={15} />}
-              onClick={() => navigate('/settings')}
+              icon={<ShieldCheck size={14} />}
+              onClick={() => navigate('/settings', { state: { section: 'settings-permissions' } })}
             >
-              Manage permissions
+              Permissions
             </Button>
           </>
         }
@@ -124,7 +136,7 @@ export function ToolsPage() {
           <span>registered tools</span>
         </div>
         <div>
-          <strong>{available}</strong>
+          <strong>{usable}</strong>
           <span>available now</span>
         </div>
         <div>
@@ -132,150 +144,229 @@ export function ToolsPage() {
           <span>permission locked</span>
         </div>
         <div>
-          <strong>{enabledPermissionCount}</strong>
+          <strong>{grantedPermissions}/8</strong>
           <span>capabilities granted</span>
         </div>
       </div>
 
-      <Alert tone="info" title="Tools are called by the assistant">
-        This page is a map of what IGRIS can do, not a remote shell. Every invocation is planned
-        in a conversation, recorded in Activity, and paused for approval when the risk requires it.
+      <Alert tone="info" title="Invocation always runs through the assistant">
+        IGRIS uses an allowlisted runtime. Terminal commands, file writes, app launches and screen
+        capture remain behind your permissions and per-call approval.
       </Alert>
 
-      <div className="tool-controls">
-        <div className="tool-category-tabs">
-          {CATEGORIES.map((item) => {
-            const Icon = item.icon
-            const count =
-              item.key === 'all'
-                ? tools.length
-                : tools.filter((tool) => tool.category === item.key).length
+      <div className="capability-toolbar">
+        <div className="capability-tabs" role="tablist" aria-label="Capability groups">
+          <button
+            type="button"
+            className={clsx('capability-tab', group === 'all' && 'is-active')}
+            onClick={() => setGroup('all')}
+          >
+            All <span>{tools.length}</span>
+          </button>
+          {CAPABILITY_GROUPS.map((definition) => {
+            const count = toolsForCapability(definition, tools).length
             return (
               <button
-                key={item.key}
+                key={definition.key}
                 type="button"
-                className={clsx('tool-category', category === item.key && 'is-active')}
-                onClick={() => setCategory(item.key)}
+                className={clsx('capability-tab', group === definition.key && 'is-active')}
+                onClick={() => setGroup(definition.key)}
               >
-                <Icon size={13} />
-                {item.label}
-                <span>{count}</span>
+                {definition.short} <span>{count}</span>
               </button>
             )
           })}
         </div>
         <div className="tool-search">
-          <Search size={13} />
+          <Search size={12} />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter tools"
+            placeholder="filter capabilities or tool ids"
             aria-label="Filter tools"
           />
           {query ? (
             <button type="button" aria-label="Clear filter" onClick={() => setQuery('')}>
-              <X size={12} />
+              <X size={11} />
             </button>
           ) : null}
         </div>
       </div>
 
-      {filtered.length ? (
-        <div className="tool-groups">
-          {(Object.keys(CATEGORY_ICON) as ToolCategory[]).map((key) => {
-            const group = grouped.get(key)
-            if (!group?.length) return null
-            const Icon = CATEGORY_ICON[key]
+      {groups.length ? (
+        <div>
+          {groups.map(({ definition, members, permissionOn, allMembers }) => {
+            const Icon = CAPABILITY_ICON[definition.key] ?? Wrench
+            const isVoice = definition.key === 'voice'
             return (
-              <section key={key} className="tool-group">
-                <div className="tool-group-head">
-                  <span className="tool-group-icon"><Icon size={14} /></span>
-                  <h2>{CATEGORIES.find((item) => item.key === key)?.label}</h2>
-                  <span>{group.length}</span>
-                </div>
-                <div className="tool-grid">
-                  {group.map((tool) => {
-                    const permissionOn = tool.permission
-                      ? Boolean(settings?.permissions[tool.permission])
-                      : true
-                    return (
-                      <Card key={tool.id} className={clsx('tool-card', !tool.available && 'is-unavailable')}>
-                        <div className="tool-card-head">
-                          <span className="tool-card-icon"><Icon size={16} /></span>
-                          <div className="tool-card-title">
+              <section key={definition.key} className="capability-group">
+                <header className="capability-group-head">
+                  <span className="capability-group-icon">
+                    <Icon size={13} />
+                  </span>
+                  <div>
+                    <h2>{definition.label}</h2>
+                    <p>{definition.description}</p>
+                  </div>
+                  <div className="capability-group-meta">
+                    <span>
+                      {isVoice
+                        ? voiceEnabled
+                          ? 'microphone enabled'
+                          : 'microphone disabled'
+                        : `${allMembers.filter((tool) => tool.available).length}/${allMembers.length} ready`}
+                    </span>
+                    <span
+                      className={clsx(
+                        'capability-group-state',
+                        permissionOn ? 'is-on' : 'is-off'
+                      )}
+                    >
+                      {definition.permissions.length
+                        ? permissionOn
+                          ? 'permission granted'
+                          : 'permission required'
+                        : 'no permission needed'}
+                    </span>
+                    {!permissionOn ? (
+                      <button
+                        type="button"
+                        className="capability-tool-link"
+                        onClick={() => openPermission(definition)}
+                      >
+                        enable <ShieldAlert size={10} />
+                      </button>
+                    ) : null}
+                  </div>
+                </header>
+
+                {isVoice ? (
+                  <div className="capability-tools">
+                    <article className={clsx('capability-tool', !voiceEnabled && 'is-locked')}>
+                      <div className="capability-tool-head">
+                        <h3>Voice transcription</h3>
+                        <code>voice.transcribe</code>
+                      </div>
+                      <p>
+                        Records microphone audio and transcribes it through the default Gemini
+                        provider. Audio is sent only for the transcription request.
+                      </p>
+                      <div className="capability-tool-meta">
+                        <span className={clsx('capability-pill', voiceEnabled ? 'is-ok' : 'is-warn')}>
+                          <Mic size={9} />
+                          {voiceEnabled ? 'permission granted' : 'permission required'}
+                        </span>
+                        <span
+                          className={clsx(
+                            'capability-pill',
+                            voiceProviderReady ? 'is-ok' : 'is-danger'
+                          )}
+                        >
+                          {voiceProviderReady ? 'gemini ready' : 'gemini required'}
+                        </span>
+                        <button
+                          type="button"
+                          className="capability-tool-link"
+                          onClick={() => navigate('/settings', { state: { section: 'settings-voice' } })}
+                        >
+                          configure voice
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+                ) : (
+                  <div className="capability-tools">
+                    {members.map((tool) => {
+                      const toolPermissionOn = tool.permission
+                        ? Boolean(permissions?.[tool.permission])
+                        : true
+                      return (
+                        <article
+                          key={tool.id}
+                          className={clsx('capability-tool', !tool.available && 'is-locked')}
+                        >
+                          <div className="capability-tool-head">
                             <h3>{tool.title}</h3>
                             <code>{tool.id}</code>
                           </div>
-                          <Badge
-                            tone={
-                              tool.risk === 'high'
-                                ? 'danger'
-                                : tool.risk === 'medium'
-                                  ? 'warning'
-                                  : 'neutral'
-                            }
-                          >
-                            {tool.risk} risk
-                          </Badge>
-                        </div>
-                        <p className="tool-card-description">{tool.description}</p>
-                        <div className="tool-card-badges">
-                          {tool.permission ? (
-                            <Badge tone={permissionOn ? 'success' : 'warning'} dot>
-                              {permissionOn ? 'Permission granted' : 'Permission required'}
-                            </Badge>
-                          ) : (
-                            <Badge tone="success" dot>No permission needed</Badge>
-                          )}
-                          {tool.requiresConfirmation ? (
-                            <Badge tone="warning">
-                              <ShieldAlert size={11} /> Confirmation
-                            </Badge>
-                          ) : null}
-                          <Badge tone={tool.available ? 'neutral' : 'danger'} dot>
-                            {tool.available ? 'Ready' : 'Unavailable'}
-                          </Badge>
-                        </div>
-                        <div className="tool-card-foot">
-                          <span className={clsx('tool-availability', !tool.available && 'is-blocked')}>
-                            {tool.available ? (
-                              <ShieldCheck size={12} />
+                          <p>{tool.description}</p>
+                          <div className="capability-tool-meta">
+                            <span className={clsx('capability-pill', RISK_TONE[tool.risk])}>
+                              {tool.risk} risk
+                            </span>
+                            {tool.permission ? (
+                              <span
+                                className={clsx(
+                                  'capability-pill',
+                                  toolPermissionOn ? 'is-ok' : 'is-warn'
+                                )}
+                              >
+                                {toolPermissionOn ? <ShieldCheck size={9} /> : <Lock size={9} />}
+                                {PERMISSION_META[tool.permission].label.toLowerCase()}
+                              </span>
                             ) : (
-                              <Lock size={12} />
+                              <span className="capability-pill is-ok">no permission</span>
                             )}
-                            {tool.availabilityDetail}
-                          </span>
-                          {tool.permission && !permissionOn ? (
-                            <button
-                              type="button"
-                              className="link-button"
-                              onClick={() => navigate('/settings')}
+                            {tool.requiresConfirmation ? (
+                              <span className="capability-pill is-warn">
+                                <ShieldAlert size={9} /> approval
+                              </span>
+                            ) : null}
+                            <span
+                              className={clsx(
+                                'capability-pill',
+                                tool.available ? 'is-ok' : 'is-danger'
+                              )}
                             >
-                              Enable {PERMISSION_META[tool.permission].label.toLowerCase()}
-                            </button>
-                          ) : null}
-                        </div>
-                      </Card>
-                    )
-                  })}
-                </div>
+                              {tool.available ? 'ready' : 'unavailable'}
+                            </span>
+                            {tool.permission && !toolPermissionOn ? (
+                              <button
+                                type="button"
+                                className="capability-tool-link"
+                                onClick={() =>
+                                  navigate('/settings', {
+                                    state: { section: 'settings-permissions' }
+                                  })
+                                }
+                              >
+                                enable
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="capability-tool-meta">
+                            <span className="capability-pill">
+                              {tool.availabilityDetail}
+                            </span>
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+                )}
               </section>
             )
           })}
         </div>
       ) : (
-        <Card>
+        <div className="card">
           <EmptyState
-            icon={Sparkles}
-            title="No tools match this filter"
-            description="Try a different category or clear the search."
+            icon={Wrench}
+            title="No capability matches this filter"
+            description="Try another group, or clear the search term."
             action={
-              <Button variant="default" onClick={() => { setQuery(''); setCategory('all') }}>
+              <Button
+                variant="default"
+                onClick={() => {
+                  setQuery('')
+                  setGroup('all')
+                }}
+              >
                 Clear filters
               </Button>
             }
           />
-        </Card>
+        </div>
       )}
     </div>
   )
