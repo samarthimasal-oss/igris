@@ -38,6 +38,7 @@ import { BrowserService } from './services/browserService'
 import { TaskService } from './tasks/taskService'
 import { createToolRegistry } from './tools/registry'
 import { ToolRuntime } from './tools/toolRuntime'
+import { ControlSessionService } from './control/sessionService'
 import { ChatEngine } from './ai/chatEngine'
 import { MainWindowManager } from './windows/mainWindow'
 import { MiniLauncherManager } from './windows/miniWindow'
@@ -181,6 +182,7 @@ async function boot(): Promise<void> {
   const terminal = new TerminalService(workspaceRepo, appLogger)
   const apps = new AppService()
   const screen = new ScreenService(screenshotsDir)
+  const control = new ControlSessionService(undefined, undefined)
 
   const tasks = new TaskService(taskRepo, (taskId) => {
     main.send(IPC_TASK_EVENT, { type: 'changed', taskId })
@@ -243,6 +245,7 @@ async function boot(): Promise<void> {
     apps,
     screen,
     voice,
+    control,
     mainWindow: main,
     exportBundle: buildExportBundle
   }

@@ -17,6 +17,8 @@ export type PermissionKey =
   | 'terminal'
   | 'appLaunch'
   | 'browser'
+  | 'browserControl'
+  | 'desktopControl'
   | 'screen'
   | 'voice'
 
@@ -224,6 +226,7 @@ export interface ConfirmationRequest {
   risk: 'medium' | 'high'
   argumentsPreview: string
   expiresAt: string
+  kind?: 'control' | 'action'
 }
 
 export interface ToolEventPayload {
@@ -405,6 +408,29 @@ export interface ScreenCapture {
   width: number
   height: number
   capturedAt: string
+}
+
+// --------------------------------------------------------------- control
+
+export type ControlScope = 'desktop' | 'browser' | 'both'
+
+export type ControlStatus = 'active' | 'paused' | 'stopped' | 'expired'
+
+export interface ControlSessionState {
+  id: string
+  goal: string
+  scope: ControlScope
+  status: ControlStatus
+  currentAction: string | null
+  actions: number
+  maxActions: number
+  startedAt: string
+  expiresAt: string
+}
+
+export type ControlEvent = {
+  type: 'changed'
+  state: ControlSessionState | null
 }
 
 /** A base64 image attached to a tool result so the model can actually see it. */

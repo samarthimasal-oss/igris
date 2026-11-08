@@ -4,6 +4,7 @@ import type {
   ChatHandle,
   ChatMessage,
   ChatSendInput,
+  ControlSessionState,
   Conversation,
   ConversationSummary,
   ConversationWithMessages,
@@ -121,6 +122,11 @@ export interface IpcContract {
   'computer.windows': { input: void; output: WindowInfo[] }
   'computer.capture': { input: void; output: ScreenCapture }
   'computer.screenStatus': { input: void; output: ScreenStatus }
+
+  'control.state': { input: void; output: ControlSessionState | null }
+  'control.pause': { input: void; output: OkResult }
+  'control.resume': { input: void; output: OkResult }
+  'control.stop': { input: void; output: OkResult }
 
   'tools.list': { input: void; output: ToolInfo[] }
 
@@ -243,6 +249,12 @@ export interface IgrisBridge {
     capture: () => Promise<ScreenCapture>
     screenStatus: () => Promise<ScreenStatus>
   }
+  control: {
+    state: () => Promise<ControlSessionState | null>
+    pause: () => Promise<OkResult>
+    resume: () => Promise<OkResult>
+    stop: () => Promise<OkResult>
+  }
   tools: {
     list: () => Promise<ToolInfo[]>
   }
@@ -270,6 +282,7 @@ export interface IgrisBridge {
   events: {
     onDraft: (listener: (event: DraftEvent) => void) => () => void
     onNavigate: (listener: (event: NavigateEvent) => void) => () => void
+    onControl: (listener: (state: ControlSessionState | null) => void) => () => void
   }
 }
 
@@ -278,10 +291,12 @@ export const IPC_CHAT_EVENT = 'igris:chat-event'
 export const IPC_TASK_EVENT = 'igris:task-event'
 export const IPC_DRAFT_EVENT = 'igris:draft-event'
 export const IPC_NAVIGATE_EVENT = 'igris:navigate-event'
+export const IPC_CONTROL_EVENT = 'igris:control-event'
 
-export type WindowRole = 'main' | 'mini'
+export type WindowRole = 'main' | 'mini' | 'hud'
 
 export const ROLE_METHOD_ALLOWLIST: Record<WindowRole, IpcMethod[] | 'all'> = {
   main: 'all',
-  mini: ['mini.restore']
+  mini: ['mini.restore'],
+  hud: ['control.state', 'control.pause', 'control.resume', 'control.stop']
 }

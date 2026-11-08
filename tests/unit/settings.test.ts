@@ -40,6 +40,22 @@ describe('normalizeSettings', () => {
     expect(settings.permissions.filesystem).toBe(false)
     expect(settings.ai.maxToolIterations).toBe(DEFAULT_SETTINGS.ai.maxToolIterations)
   })
+
+  it('keeps computer control disabled for existing and new installs', () => {
+    expect(DEFAULT_SETTINGS.permissions.desktopControl).toBe(false)
+    expect(DEFAULT_SETTINGS.permissions.browserControl).toBe(false)
+    const upgraded = normalizeSettings({ permissions: { terminal: true } })
+    expect(upgraded.permissions.desktopControl).toBe(false)
+    expect(upgraded.permissions.browserControl).toBe(false)
+  })
+
+  it('preserves an explicitly enabled control permission', () => {
+    const settings = normalizeSettings({
+      permissions: { desktopControl: true, browserControl: true }
+    })
+    expect(settings.permissions.desktopControl).toBe(true)
+    expect(settings.permissions.browserControl).toBe(true)
+  })
 })
 
 describe('clampSettings', () => {
@@ -54,6 +70,13 @@ describe('clampSettings', () => {
     expect(output.ai.maxToolIterations).toBe(1)
     expect(output.ai.temperature).toBe(2)
     expect(output.privacy.retentionDays).toBe(0)
+  })
+
+  it('allows long autonomous control runs but caps them', () => {
+    const input = structuredClone(DEFAULT_SETTINGS)
+    input.ai.maxToolIterations = 500
+    const output = clampSettings(input)
+    expect(output.ai.maxToolIterations).toBe(60)
   })
 
   it('resets unknown enum values to safe defaults', () => {

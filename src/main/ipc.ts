@@ -41,6 +41,7 @@ import type {
 import type { TaskService } from './tasks/taskService'
 import type { ChatEngine } from './ai/chatEngine'
 import type { createToolRegistry } from './tools/registry'
+import type { ControlSessionService } from './control/sessionService'
 import type { MainWindowManager } from './windows/mainWindow'
 
 export type ToolRegistry = ReturnType<typeof createToolRegistry>
@@ -67,6 +68,7 @@ export interface AppContext {
   apps: AppService
   screen: ScreenService
   voice: VoiceService
+  control: ControlSessionService
   mainWindow: MainWindowManager
   exportBundle: typeof buildExportBundle
 }
@@ -94,6 +96,8 @@ const permissionKeys = [
   'terminal',
   'appLaunch',
   'browser',
+  'browserControl',
+  'desktopControl',
   'screen',
   'voice'
 ] as const
@@ -133,7 +137,7 @@ const settingsPatchSchema = z
     ai: z
       .object({
         contextMessages: z.number().int().min(4).max(80).optional(),
-        maxToolIterations: z.number().int().min(1).max(12).optional(),
+        maxToolIterations: z.number().int().min(1).max(60).optional(),
         temperature: z.number().min(0).max(2).optional(),
         streaming: z.boolean().optional(),
         systemInstructions: z.string().max(8000).optional(),
@@ -610,6 +614,21 @@ function buildHandlers(ctx: AppContext): Record<IpcMethod, Handler> {
       return ctx.screen.capture()
     },
     'computer.screenStatus': () => ctx.screen.status(),
+
+    'control.state': () => ctx.control.activeState(),
+    'control.pause': () => {
+      ctx.control.pause()
+      return { ok: true, message: 'Computer control is paused.' }
+    },
+    'control.resume': () => {
+      ctx.control.resume()
+      return { ok: true, message: 'Computer control resumed.' }
+    },
+    'control.stop': () => {
+      ctx.control.endAll('user stopped control')
+      for (const runId of ctx.chat.activeRunIds()) ctx.chat.cancel(runId)
+      return { ok: true, message: 'Computer control stopped.' }
+    },
 
     'tools.list': () => ctx.tools.listInfo(),
 

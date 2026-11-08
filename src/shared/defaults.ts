@@ -22,6 +22,8 @@ export const DEFAULT_SETTINGS: Settings = {
     terminal: false,
     appLaunch: false,
     browser: false,
+    browserControl: false,
+    desktopControl: false,
     screen: false,
     voice: false
   },
@@ -187,6 +189,18 @@ export const PERMISSION_META: Record<
     label: 'Web browsing',
     description:
       'Let the assistant open pages and searches in your default browser. IGRIS cannot read or control Chrome or Edge.',
+    sensitive: true
+  },
+  browserControl: {
+    label: 'Control web pages',
+    description:
+      'Read and operate pages in a dedicated IGRIS browser profile. This is separate from your normal browser and its cookies.',
+    sensitive: true
+  },
+  desktopControl: {
+    label: 'Control this computer',
+    description:
+      'Move the mouse, click, type, press keys, manage windows and launch apps. Every task needs a separate approval and a visible stop.',
     sensitive: true
   },
   screen: {

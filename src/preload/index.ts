@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC_CALL_CHANNEL,
   IPC_CHAT_EVENT,
+  IPC_CONTROL_EVENT,
   IPC_DRAFT_EVENT,
   IPC_NAVIGATE_EVENT,
   IPC_TASK_EVENT,
@@ -17,6 +18,7 @@ import type {
   ChatHandle,
   ChatMessage,
   ChatSendInput,
+  ControlSessionState,
   Conversation,
   ConversationSummary,
   ConversationWithMessages,
@@ -170,6 +172,12 @@ const bridge: IgrisBridge = {
     capture: () => invoke('computer.capture'),
     screenStatus: () => invoke('computer.screenStatus')
   },
+  control: {
+    state: () => invoke('control.state'),
+    pause: () => invoke('control.pause'),
+    resume: () => invoke('control.resume'),
+    stop: () => invoke('control.stop')
+  },
   tools: {
     list: () => invoke('tools.list')
   },
@@ -198,7 +206,9 @@ const bridge: IgrisBridge = {
   },
   events: {
     onDraft: (listener: (event: DraftEvent) => void) => subscribe(IPC_DRAFT_EVENT, listener),
-    onNavigate: (listener: (event: NavigateEvent) => void) => subscribe(IPC_NAVIGATE_EVENT, listener)
+    onNavigate: (listener: (event: NavigateEvent) => void) => subscribe(IPC_NAVIGATE_EVENT, listener),
+    onControl: (listener: (state: ControlSessionState | null) => void) =>
+      subscribe(IPC_CONTROL_EVENT, listener)
   }
 }
 
@@ -227,6 +237,7 @@ export type PreloadSurfaces = {
   app: AppInfo
   window: WindowInfo
   capture: ScreenCapture
+  control: ControlSessionState
   screen: ScreenStatus
   tool: ToolInfo
   memory: MemoryItem
