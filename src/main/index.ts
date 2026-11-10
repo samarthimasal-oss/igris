@@ -5,9 +5,10 @@ import {
   Menu,
   nativeImage,
   session,
+  shell,
   Tray
 } from 'electron'
-import { mkdirSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   IPC_CHAT_EVENT,
@@ -39,6 +40,10 @@ import { TaskService } from './tasks/taskService'
 import { createToolRegistry } from './tools/registry'
 import { ToolRuntime } from './tools/toolRuntime'
 import { ControlSessionService } from './control/sessionService'
+import { OperatorClient } from './control/operatorClient'
+import { DesktopService } from './control/desktopService'
+import { BrowserService as ControlBrowserService } from './control/browserService'
+import { encodeScreenshotBuffer, encodeScreenshotFile } from './control/screenshotEncoder'
 import { ChatEngine } from './ai/chatEngine'
 import { MainWindowManager } from './windows/mainWindow'
 import { MiniLauncherManager } from './windows/miniWindow'
@@ -52,6 +57,10 @@ let db: Database | null = null
 let tray: Tray | null = null
 let mainWindow: MainWindowManager | null = null
 let miniLauncher: MiniLauncherManager | null = null
+let operatorClient: OperatorClient | null = null
+let desktopControl: DesktopService | null = null
+let browserControl: ControlBrowserService | null = null
+let controlSession: ControlSessionService | null = null
 let chat: ChatEngine | null = null
 let settingsService: SettingsService | null = null
 let conversations: ConversationRepository | null = null
@@ -110,6 +119,13 @@ async function start(): Promise<void> {
       miniLauncher?.setQuitting(true)
       chat?.cancelAll('shutdown')
       miniLauncher?.close()
+      try {
+        void desktopControl?.releaseAll()
+        void browserControl?.stop()
+        controlSession?.endAll('app quit')
+      } catch {
+        // Control shutdown is best effort.
+      }
     } catch {
       // Continue shutdown even if a window is already gone.
     }
@@ -133,6 +149,7 @@ async function start(): Promise<void> {
   })
   app.on('will-quit', () => {
     if (dispatcherChannel) ipcMain.removeHandler(dispatcherChannel)
+    operatorClient?.dispose()
     tray?.destroy()
     tray = null
   })
@@ -143,9 +160,14 @@ async function boot(): Promise<void> {
   const dataDir = join(userDataPath, 'data')
   const backupsDir = join(dataDir, 'backups')
   const screenshotsDir = join(dataDir, 'screenshots')
+  const controlScreenshotsDir = join(dataDir, 'control')
+  const operatorDir = join(userDataPath, 'operator')
+  const browserProfileDir = join(userDataPath, 'browser', 'igris-profile')
   mkdirSync(dataDir, { recursive: true })
   mkdirSync(backupsDir, { recursive: true })
   mkdirSync(screenshotsDir, { recursive: true })
+  mkdirSync(controlScreenshotsDir, { recursive: true })
+  mkdirSync(operatorDir, { recursive: true })
 
   db = new Database(join(dataDir, 'igris.db'))
   const database = db
@@ -183,6 +205,56 @@ async function boot(): Promise<void> {
   const apps = new AppService()
   const screen = new ScreenService(screenshotsDir)
   const control = new ControlSessionService(undefined, undefined)
+  controlSession = control
+
+  const operatorPath = join(operatorDir, 'operator.ps1')
+  const bundledOperator = join(__dirname, 'operator.ps1')
+  const sourceOperator = existsSync(bundledOperator)
+    ? bundledOperator
+    : join(process.cwd(), 'src', 'main', 'control', 'operator.ps1')
+  try {
+    copyFileSync(sourceOperator, operatorPath)
+  } catch (error) {
+    appLogger.warn(
+      'control',
+      `The Windows operator script could not be installed: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
+  }
+
+  const operator = new OperatorClient({
+    logger: appLogger,
+    command: 'powershell.exe',
+    args: [
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      operatorPath
+    ],
+    cwd: operatorDir
+  })
+  const desktopControlService = new DesktopService({
+    operator,
+    sessions: control,
+    apps,
+    logger: appLogger,
+    screenshotsDir: controlScreenshotsDir,
+    encodeScreenshot: async (path) => encodeScreenshotFile(path),
+    openPath: (path) => shell.openPath(path),
+    self: { pid: process.pid, processName: 'igris' }
+  })
+  const browserControlService = new ControlBrowserService({
+    sessions: control,
+    profileDir: browserProfileDir,
+    logger: appLogger,
+    encodeScreenshot: async (buffer) => encodeScreenshotBuffer(buffer)
+  })
+  operatorClient = operator
+  desktopControl = desktopControlService
+  browserControl = browserControlService
 
   const tasks = new TaskService(taskRepo, (taskId) => {
     main.send(IPC_TASK_EVENT, { type: 'changed', taskId })
@@ -246,6 +318,9 @@ async function boot(): Promise<void> {
     screen,
     voice,
     control,
+    desktop: desktopControlService,
+    browserControl: browserControlService,
+    operator,
     mainWindow: main,
     exportBundle: buildExportBundle
   }

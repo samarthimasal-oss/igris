@@ -227,18 +227,24 @@ export class ToolRuntime {
       const outcome = await tool.run(parsed, { ...context, signal: timeoutController.signal })
       const safeText = redactAndTruncate(outcome.text, 30_000)
       this.tasks.updateToolRun(run.id, {
-        status: 'completed',
+        status: outcome.denied ? 'denied' : 'completed',
         result: safeText,
         finishedAt: new Date().toISOString()
       })
       invocation.hooks.onToolEvent({
         toolName: tool.id,
         title: tool.title,
-        status: 'completed',
+        status: outcome.denied ? 'denied' : 'completed',
         arguments: parsed,
         result: safeText
       })
-      return { ok: true, denied: false, text: safeText, display: outcome.display, images: outcome.images }
+      return {
+        ok: !outcome.denied,
+        denied: Boolean(outcome.denied),
+        text: safeText,
+        display: outcome.display,
+        images: outcome.images
+      }
     } catch (error) {
       if (invocation.signal.aborted) {
         this.tasks.updateToolRun(run.id, {

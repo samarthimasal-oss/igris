@@ -24,6 +24,8 @@ export interface ToolOutcome {
   display?: string
   /** Optional images for the model (e.g. what IGRIS saw on screen). */
   images?: ToolImage[]
+  /** The user declined a per-action safety gate; do not retry. */
+  denied?: boolean
 }
 
 export interface ToolDefinition {

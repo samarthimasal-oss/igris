@@ -1,11 +1,27 @@
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import type { Plugin } from 'vite'
+
+/** Copies the PowerShell operator next to the main bundle so it ships in the app. */
+function operatorAsset(): Plugin {
+  return {
+    name: 'igris-operator-asset',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'operator.ps1',
+        source: readFileSync(resolve('src/main/control/operator.ps1'), 'utf8')
+      })
+    }
+  }
+}
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin(), operatorAsset()],
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),

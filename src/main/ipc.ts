@@ -42,6 +42,9 @@ import type { TaskService } from './tasks/taskService'
 import type { ChatEngine } from './ai/chatEngine'
 import type { createToolRegistry } from './tools/registry'
 import type { ControlSessionService } from './control/sessionService'
+import type { DesktopService } from './control/desktopService'
+import type { BrowserService as ControlBrowserService } from './control/browserService'
+import type { OperatorClient } from './control/operatorClient'
 import type { MainWindowManager } from './windows/mainWindow'
 
 export type ToolRegistry = ReturnType<typeof createToolRegistry>
@@ -69,6 +72,9 @@ export interface AppContext {
   screen: ScreenService
   voice: VoiceService
   control: ControlSessionService
+  desktop: DesktopService
+  browserControl: ControlBrowserService
+  operator: OperatorClient
   mainWindow: MainWindowManager
   exportBundle: typeof buildExportBundle
 }
@@ -618,15 +624,18 @@ function buildHandlers(ctx: AppContext): Record<IpcMethod, Handler> {
     'control.state': () => ctx.control.activeState(),
     'control.pause': () => {
       ctx.control.pause()
+      void ctx.desktop.releaseAll()
       return { ok: true, message: 'Computer control is paused.' }
     },
     'control.resume': () => {
       ctx.control.resume()
       return { ok: true, message: 'Computer control resumed.' }
     },
-    'control.stop': () => {
+    'control.stop': async () => {
       ctx.control.endAll('user stopped control')
       for (const runId of ctx.chat.activeRunIds()) ctx.chat.cancel(runId)
+      await ctx.desktop.releaseAll()
+      await Promise.allSettled([ctx.browserControl.stop(), ctx.operator.stop()])
       return { ok: true, message: 'Computer control stopped.' }
     },
 
