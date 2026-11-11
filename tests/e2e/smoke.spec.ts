@@ -225,3 +225,104 @@ test('minimizes into a robot launcher and restores the workspace', async () => {
   expect(await page.evaluate(() => window.location.hash)).toBe(routeBefore)
   expect(pageErrors).toEqual([])
 })
+
+test('shows the control bar, pauses, resumes, and stops from the HUD', async () => {
+  await page.evaluate(() => {
+    window.location.hash = '#/'
+  })
+  await page.locator('.home-page').waitFor({ state: 'visible' })
+
+  await app.evaluate(() => {
+    const hooks = (
+      globalThis as typeof globalThis & {
+        __igrisE2E: { startControl: (goal: string, scope: 'desktop' | 'browser' | 'both') => unknown }
+      }
+    ).__igrisE2E
+    hooks.startControl('E2E: organize the desktop', 'desktop')
+  })
+
+  await expect
+    .poll(async () => app.windows().some((candidate) => candidate.url().includes('hud.html')))
+    .toBe(true)
+  const hud = app.windows().find((candidate) => candidate.url().includes('hud.html'))
+  if (!hud) throw new Error('The control HUD did not open.')
+  await hud.waitForLoadState('domcontentloaded')
+
+  await expect(hud.locator('.hud-goal')).toHaveText('E2E: organize the desktop')
+  await expect(hud.getByRole('button', { name: 'Pause computer control' })).toBeVisible()
+  await expect(page.locator('.tw-control')).toBeVisible()
+  await expect(page.locator('.tw-control-goal')).toHaveText('E2E: organize the desktop')
+
+  await page.locator('.tw-control').getByRole('button', { name: 'Pause', exact: true }).click()
+  await expect(hud.locator('.hud')).toHaveClass(/hud-paused/)
+  await expect(page.locator('.tw-control')).toHaveClass(/is-paused/)
+
+  await hud.getByRole('button', { name: 'Resume computer control' }).click()
+  await expect(hud.locator('.hud')).not.toHaveClass(/hud-paused/)
+
+  await hud.getByRole('button', { name: 'Stop computer control' }).click()
+  await expect(page.locator('.tw-control')).toHaveCount(0)
+  await expect
+    .poll(async () =>
+      app.evaluate(({ BrowserWindow }) => {
+        const window = BrowserWindow.getAllWindows().find((candidate) =>
+          candidate.webContents.getURL().includes('hud.html')
+        )
+        return window?.isVisible() ?? false
+      })
+    )
+    .toBe(false)
+  expect(pageErrors).toEqual([])
+})
+
+test('renders the computer-control approval variant', async () => {
+  await app.evaluate(() => {
+    const hooks = (
+      globalThis as typeof globalThis & {
+        __igrisE2E: { emitChatEvent: (event: unknown) => void }
+      }
+    ).__igrisE2E
+    hooks.emitChatEvent({
+      type: 'confirmation',
+      runId: 'e2e-control-run',
+      request: {
+        id: 'e2e-control-confirmation',
+        toolName: 'request_computer_control',
+        title: 'Request computer control',
+        description: 'Preview of the requested control session.',
+        risk: 'high',
+        argumentsPreview: JSON.stringify(
+          { goal: 'Open Notepad and type a short note', scope: 'desktop' },
+          null,
+          2
+        ),
+        expiresAt: new Date(Date.now() + 120_000).toISOString()
+      }
+    })
+  })
+
+  await expect(
+    page.getByRole('heading', { name: 'Allow computer control for this task?' })
+  ).toBeVisible()
+  await expect(page.getByText('Open Notepad and type a short note')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Allow for this task' })).toBeVisible()
+  await expect(page.getByText('Ctrl+Alt+Shift+X')).toBeVisible()
+
+  await app.evaluate(() => {
+    const hooks = (
+      globalThis as typeof globalThis & {
+        __igrisE2E: { emitChatEvent: (event: unknown) => void }
+      }
+    ).__igrisE2E
+    hooks.emitChatEvent({
+      type: 'confirmation_resolved',
+      runId: 'e2e-control-run',
+      confirmationId: 'e2e-control-confirmation',
+      approved: false
+    })
+  })
+  await expect(
+    page.getByRole('heading', { name: 'Allow computer control for this task?' })
+  ).toHaveCount(0)
+  expect(pageErrors).toEqual([])
+})

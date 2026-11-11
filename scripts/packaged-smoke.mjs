@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
@@ -31,7 +31,36 @@ try {
     window.location.hash = '#/settings'
   })
   await page.locator('.settings-page').waitFor({ state: 'visible', timeout: 15_000 })
-  console.log('Packaged smoke test passed: IGRIS.exe booted, bridged, and routed to Settings.')
+
+  // Desktop control ships as a real bundled asset. The app copies it to
+  // userData at boot, so its presence proves the asset survived packaging.
+  const operatorPath = join(userData, 'operator', 'operator.ps1')
+  for (let i = 0; i < 40 && !existsSync(operatorPath); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  assert.equal(existsSync(operatorPath), true, 'the packaged operator.ps1 was not copied to userData')
+  assert.match(readFileSync(operatorPath, 'utf8'), /releaseAll/, 'the operator script is incomplete')
+
+  // Opening a control session proves the packaged HUD renderer is present.
+  await app.evaluate(() => {
+    globalThis.__igrisE2E.startControl('Packaged HUD check', 'desktop')
+  })
+  for (let i = 0; i < 50; i += 1) {
+    if (app.windows().some((candidate) => candidate.url().includes('hud.html'))) break
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  assert.equal(
+    app.windows().some((candidate) => candidate.url().includes('hud.html')),
+    true,
+    'the packaged HUD renderer did not open'
+  )
+  await app.evaluate(() => {
+    globalThis.__igrisE2E.stopControl()
+  })
+
+  console.log(
+    'Packaged smoke test passed: IGRIS.exe booted, bridged, routed to Settings, and loaded the control operator and HUD.'
+  )
 } finally {
   await app?.close().catch(() => undefined)
   rmSync(userData, { recursive: true, force: true })

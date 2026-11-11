@@ -13,7 +13,7 @@ import {
   Wrench
 } from 'lucide-react'
 import clsx from 'clsx'
-import type { ConversationSummary, MemoryItem, Workspace } from '@shared/types'
+import type { ConversationSummary, ControlSessionState, MemoryItem, Workspace } from '@shared/types'
 import { useAppStore, type ActiveRun } from '../lib/store'
 import {
   CAPABILITY_GROUPS,
@@ -41,6 +41,50 @@ import { formatBytes, greeting, relativeTime, truncate, uptime } from '../lib/fo
 import { errorMessage } from '../lib/errors'
 
 const QUICK_COMMANDS = ['/help', '/status', '/projects', '/tools']
+
+function ControlStrip({
+  state,
+  busy,
+  onToggle,
+  onStop
+}: {
+  state: ControlSessionState
+  busy: boolean
+  onToggle: () => void
+  onStop: () => void
+}) {
+  const paused = state.status === 'paused'
+  return (
+    <div className={clsx('tw-control', paused && 'is-paused')} role="region" aria-label="Computer control">
+      <div className="tw-control-main">
+        <div className="tw-control-head">
+          <span className="tw-control-led" aria-hidden />
+          <span className="tw-control-title">{paused ? 'CONTROL PAUSED' : 'CONTROL ACTIVE'}</span>
+          <span className="tw-control-scope">{state.scope}</span>
+          <span className="tw-control-count">
+            {state.actions}/{state.maxActions} actions
+          </span>
+        </div>
+        <div className="tw-control-goal" title={state.goal}>
+          {state.goal}
+        </div>
+        <div className="tw-control-action">
+          {paused
+            ? 'Paused — no new actions will run.'
+            : (state.currentAction ?? 'Waiting for the next action…')}
+        </div>
+      </div>
+      <div className="tw-control-buttons">
+        <button type="button" className="tw-btn" disabled={busy} onClick={onToggle}>
+          {paused ? 'Resume' : 'Pause'}
+        </button>
+        <button type="button" className="tw-btn is-deny" disabled={busy} onClick={onStop}>
+          Stop
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function sessionCode(): string {
   return Math.random().toString(16).slice(2, 6).toUpperCase()
@@ -76,6 +120,7 @@ export function HomePage() {
   const health = useAppStore((state) => state.health)
   const system = useAppStore((state) => state.system)
   const runs = useAppStore((state) => state.runs)
+  const control = useAppStore((state) => state.control)
   const confirmations = useAppStore((state) => state.confirmations)
   const preferredProviderId = useAppStore((state) => state.preferredProviderId)
   const preferredWorkspaceId = useAppStore((state) => state.preferredWorkspaceId)
@@ -94,6 +139,7 @@ export function HomePage() {
   const [input, setInput] = useState('')
   const [history, setHistory] = useState<string[]>([])
   const [sending, setSending] = useState(false)
+  const [controlBusy, setControlBusy] = useState(false)
   const [robotError, setRobotError] = useState(false)
   const [clock, setClock] = useState(() => new Date())
   const inputRef = useRef<HTMLInputElement>(null)
@@ -117,6 +163,7 @@ export function HomePage() {
   const grantedPermissions = permissions
     ? Object.values(permissions).filter(Boolean).length
     : 0
+  const permissionTotal = permissions ? Object.keys(permissions).length : 0
   const readyTools = tools.filter((tool) => tool.available).length
   const activeRuns = useMemo(
     () => Object.values(runs).filter((run) => !run.finished),
@@ -314,7 +361,7 @@ export function HomePage() {
           tone: degraded ? 'warning' : 'success'
         },
         {
-          text: `tools       ${readyTools}/${tools.length} ready · ${grantedPermissions}/8 permissions granted`,
+          text: `tools       ${readyTools}/${tools.length} ready · ${grantedPermissions}/${permissionTotal} permissions granted`,
           tone: 'muted'
         },
         {
@@ -485,6 +532,32 @@ export function HomePage() {
     void submit(command)
   }
 
+  const toggleControl = async (): Promise<void> => {
+    if (!control || controlBusy) return
+    setControlBusy(true)
+    try {
+      if (control.status === 'paused') await window.igris.control.resume()
+      else await window.igris.control.pause()
+    } catch (error) {
+      notify('error', 'Could not change computer control', errorMessage(error))
+    } finally {
+      setControlBusy(false)
+    }
+  }
+
+  const stopComputerControl = async (): Promise<void> => {
+    if (controlBusy) return
+    setControlBusy(true)
+    try {
+      await window.igris.control.stop()
+      notify('success', 'Computer control stopped')
+    } catch (error) {
+      notify('error', 'Could not stop computer control', errorMessage(error))
+    } finally {
+      setControlBusy(false)
+    }
+  }
+
   const queuedCommand = (location.state as { terminalCommand?: string } | null)?.terminalCommand
   useEffect(() => {
     if (!queuedCommand || handledNavigation.current === location.key) return
@@ -554,6 +627,11 @@ export function HomePage() {
               <span>{confirmation.risk} risk</span>
             </div>
             <p>{confirmation.description}</p>
+            {confirmation.toolName === 'request_computer_control' ? (
+              <p>
+                Approval covers this task only. Stop any time with the control bar or Ctrl+Alt+Shift+X.
+              </p>
+            ) : null}
             {confirmation.argumentsPreview ? (
               <pre>{confirmation.argumentsPreview}</pre>
             ) : null}
@@ -563,7 +641,9 @@ export function HomePage() {
                 className="tw-btn is-approve"
                 onClick={() => void answerConfirmation(confirmation.id, true)}
               >
-                Approve once
+                {confirmation.toolName === 'request_computer_control'
+                  ? 'Allow for this task'
+                  : 'Approve once'}
               </button>
               <button
                 type="button"
@@ -896,6 +976,15 @@ export function HomePage() {
               ) : null}
             </TerminalOutput>
 
+            {control ? (
+              <ControlStrip
+                state={control}
+                busy={controlBusy}
+                onToggle={() => void toggleControl()}
+                onStop={() => void stopComputerControl()}
+              />
+            ) : null}
+
             <TerminalInput
               ref={inputRef}
               value={input}
@@ -937,8 +1026,17 @@ export function HomePage() {
               },
               {
                 label: 'permissions',
-                value: `${grantedPermissions}/8`,
+                value: `${grantedPermissions}/${permissionTotal}`,
                 tone: grantedPermissions ? 'default' : 'warn'
+              },
+              {
+                label: 'control',
+                value: control
+                  ? control.status === 'paused'
+                    ? 'paused'
+                    : `${control.actions}/${control.maxActions}`
+                  : 'off',
+                tone: control ? (control.status === 'paused' ? 'warn' : 'live') : 'dim'
               },
               {
                 label: 'db',
@@ -1009,6 +1107,12 @@ export function HomePage() {
             <div className="term-aside-row">
               <span>approvals</span>
               <strong>{confirmations.length ? `${confirmations.length} pending` : 'clear'}</strong>
+            </div>
+            <div className="term-aside-row">
+              <span>control</span>
+              <strong>
+                {control ? (control.status === 'paused' ? 'paused' : 'active') : 'off'}
+              </strong>
             </div>
             <div className="term-aside-row">
               <span>credentials</span>

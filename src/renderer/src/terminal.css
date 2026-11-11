@@ -1807,6 +1807,116 @@ select {
   text-overflow: ellipsis;
 }
 
+/* computer control strip */
+
+.tw-control {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+  border-left: 2px solid var(--accent);
+  border-radius: 3px;
+  background:
+    linear-gradient(90deg, rgba(var(--accent-rgb), 0.08), rgba(var(--accent-rgb), 0.015));
+}
+
+.tw-control.is-paused {
+  border-left-color: var(--warning);
+  background:
+    linear-gradient(90deg, rgba(var(--warning-rgb), 0.07), rgba(var(--warning-rgb), 0.012));
+}
+
+.tw-control-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tw-control-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 7px;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.tw-control.is-paused .tw-control-head {
+  color: var(--warning);
+}
+
+.tw-control-led {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+.tw-control.is-paused .tw-control-led {
+  background: var(--warning);
+  box-shadow: 0 0 6px rgba(var(--warning-rgb), 0.7);
+}
+
+.tw-control-scope {
+  padding: 1px 4px;
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  border-radius: 2px;
+  font-size: 6.5px;
+  letter-spacing: 0.08em;
+}
+
+.tw-control.is-paused .tw-control-scope {
+  border-color: rgba(var(--warning-rgb), 0.28);
+}
+
+.tw-control-count {
+  margin-left: auto;
+  font-size: 7px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tw-control-goal {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tw-control-action {
+  overflow: hidden;
+  font-size: 8px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tw-control-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.tw-control-buttons .tw-btn {
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tw-control-led {
+    animation: none;
+  }
+}
+
 /* ------------------------------------------------------------ companion */
 
 .term-robot-panel {

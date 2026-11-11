@@ -8,9 +8,11 @@ import {
   Files,
   FolderKanban,
   Globe2,
+  GlobeLock,
   Lock,
   Mic,
   Monitor,
+  MousePointerClick,
   RefreshCw,
   Search,
   ShieldAlert,
@@ -39,6 +41,8 @@ const CAPABILITY_ICON: Record<string, typeof Files> = {
   apps: AppWindow,
   screen: Monitor,
   browser: Globe2,
+  'desktop-control': MousePointerClick,
+  'browser-control': GlobeLock,
   voice: Mic,
   memory: Brain,
   system: Cpu
@@ -144,7 +148,7 @@ export function ToolsPage() {
           <span>permission locked</span>
         </div>
         <div>
-          <strong>{grantedPermissions}/8</strong>
+          <strong>{grantedPermissions}/{Object.keys(PERMISSION_META).length}</strong>
           <span>capabilities granted</span>
         </div>
       </div>

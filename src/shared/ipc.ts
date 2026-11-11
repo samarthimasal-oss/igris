@@ -4,6 +4,7 @@ import type {
   ChatHandle,
   ChatMessage,
   ChatSendInput,
+  ControlEvent,
   ControlSessionState,
   Conversation,
   ConversationSummary,
@@ -282,7 +283,7 @@ export interface IgrisBridge {
   events: {
     onDraft: (listener: (event: DraftEvent) => void) => () => void
     onNavigate: (listener: (event: NavigateEvent) => void) => () => void
-    onControl: (listener: (state: ControlSessionState | null) => void) => () => void
+    onControl: (listener: (event: ControlEvent) => void) => () => void
   }
 }
 

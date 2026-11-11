@@ -68,6 +68,24 @@ export const CAPABILITY_GROUPS: CapabilityDefinition[] = [
     toolIds: ['browser_open', 'browser_search', 'youtube_search']
   },
   {
+    key: 'desktop-control',
+    label: 'Computer control',
+    short: 'Control',
+    description:
+      'See the screen and operate apps with the mouse and keyboard, one explicitly approved task at a time.',
+    permissions: ['desktopControl', 'screen'],
+    toolIds: ['request_computer_control', 'desktop']
+  },
+  {
+    key: 'browser-control',
+    label: 'Managed browser',
+    short: 'Web AI',
+    description:
+      'Drive a dedicated IGRIS Edge profile to navigate, read and operate web pages without touching your normal browser.',
+    permissions: ['browserControl'],
+    toolIds: ['browser']
+  },
+  {
     key: 'voice',
     label: 'Voice',
     short: 'Voice',

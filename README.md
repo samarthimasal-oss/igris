@@ -2,7 +2,7 @@
 
 **A premium personal AI assistant for Windows.** One calm, three-dimensional surface for asking, researching, writing code, and directing your machine — with every consequential action held behind explicit permission and approval.
 
-IGRIS is a native Electron application with a React interface, real cloud-model streaming, a local SQLite history, a small robot launcher that appears when the workspace is minimized, and a permissioned tool runtime for files, terminals, applications, real screen vision, voice input, and web handoff, with web pages handed to your default browser.
+IGRIS is a native Electron application with a React interface, real cloud-model streaming, a local SQLite history, a small robot launcher that appears when the workspace is minimized, and a permissioned tool runtime for files, terminals, applications, real screen vision, voice input, and web handoff. With explicit, task-scoped approval it can also operate Windows apps and drive a dedicated IGRIS browser, with a floating stop bar and a global stop hotkey.
 
 ![IGRIS home](docs/images/home.jpg)
 
@@ -14,11 +14,12 @@ IGRIS is a native Electron application with a React interface, real cloud-model 
 
 - **Immersive conversation core** — obsidian, titanium, and electric-azure design with a procedural 3D core in the Conversation view, graceful CSS fallback, and three accent identities.
 - **Genuine streaming chat** — SSE streaming from cloud providers, persistent conversations, cancellation, usage metadata, and provider-aware error messages.
-- **22 permissioned tools** — project inspection, file read/search/write/patch, checkpoints, allowlisted terminal commands, app launch, real screen vision, browser handoff, voice transcription, and memory.
-- **Approval by design** — sensitive tools require a granted capability *and* a per-call confirmation. High-risk tools are marked, logged, and time-limited.
-- **See my screen** — real desktop vision: when you ask, IGRIS captures your whole desktop exactly as you see it (including background windows like the browser or VS Code) and attaches the image to the model so it can actually look.
-- **Voice input** — hold the microphone in the Conversation composer; speech is transcribed by your cloud provider (Gemini inline audio today) and sent into the chat as if you typed it. Mic access is gated by the `Voice input` permission.
-- **Hands off your browser** — web pages open in Chrome, Edge, or whatever Windows uses, directly to the site you named. IGRIS never embeds a browser and cannot read, click, or fill those pages.
+- **25 permissioned tools** - project inspection, file read/search/write/patch, checkpoints, allowlisted terminal commands, app launch, real screen vision, browser handoff, desktop and browser control, voice transcription, and memory.
+- **Approval by design** - sensitive tools require a granted capability *and* a per-call confirmation. High-risk tools are marked, logged, and time-limited.
+- **Real computer control** - after one approval per task, IGRIS can click, type, scroll, manage windows, launch apps, and operate a dedicated Edge/Chrome profile. A 360x92 HUD shows the goal and current action with Pause/Resume/Stop, and `Ctrl+Alt+Shift+X` stops everything. Sessions expire after 20 minutes and end with the task.
+- **See my screen** - real desktop vision: when you ask, IGRIS captures your whole desktop exactly as you see it (including background windows like the browser or VS Code) and attaches the image to the model so it can actually look.
+- **Voice input** - hold the microphone in the Conversation composer; speech is transcribed by your cloud provider (Gemini inline audio today) and sent into the chat as if you typed it. Mic access is gated by the `Voice input` permission.
+- **Browser, two ways** - hand a page to Chrome, Edge, or whatever Windows uses, or let IGRIS drive its own dedicated browser profile. It never attaches to your daily profile and never types passwords.
 - **Local-first persistence** — conversations, tasks, tool runs, memories, logs, and settings live in a local SQLite database.
 - **Windows DPAPI credentials** — provider keys are encrypted with Electron `safeStorage`, used only in the privileged main process, and never sent back to the interface.
 - **Auditable activity** — every task, step, tool call, approval, and result appears in Activity, with diagnostic export.
@@ -29,7 +30,7 @@ IGRIS is a native Electron application with a React interface, real cloud-model 
 
 - Not a local-model runner. Ollama and bundled models are intentionally out of scope.
 - Not a trading or financial automation tool.
-- Not an autonomous agent that bypasses confirmations. The model proposes; you decide.
+- Not an autonomous agent that bypasses confirmations. The model proposes; you decide. Desktop control is approved per task, visible, time-limited, and stoppable.
 - Not a hosted service. Your history stays on this PC; prompts go only to the provider you configure.
 
 ---
@@ -110,6 +111,17 @@ Every capability is off by default. Enable only what you need in **Settings → 
 | Web browsing | Open pages and searches in your default browser | Off |
 | See my screen | Look at your whole desktop (background windows included) when you ask | Off |
 | Voice input | Transcribe microphone speech with your cloud provider | Off |
+| Control this computer | Click, type, scroll, manage windows, and launch resolved apps for one approved task | Off |
+| Control web pages | Read and operate the dedicated IGRIS Edge/Chrome profile for one approved task | Off |
+
+Desktop and browser control are separate permissions and are never implied by `See my screen` or `Launch applications`.
+
+- Each task needs one approval. The model calls `request_computer_control`; the prompt shows the goal, scope, hard blocks, and stop hotkey.
+- A session lasts at most 20 minutes, allows 120 actions, and ends when the task ends, fails, is cancelled, or you stop it.
+- A floating HUD and a Home-page control strip show the current action with Pause/Resume/Stop. `Ctrl+Alt+Shift+X` stops control globally; the shortcut is registered only while a session is active.
+- Closing windows, typing into a shell, launching an app for the first time, and checkout/payment/send patterns always ask, even when per-call confirmations are off.
+- Password fields, UAC/elevated windows, credential managers, IGRIS's own windows, browser downloads/uploads, and `file://`/`javascript:`/`data:` URLs are hard-blocked.
+- The managed browser uses its own profile at `%APPDATA%\IGRIS\browser\igris-profile`. It never attaches to your daily Chrome or Edge profile.
 
 Sensitive actions still require a per-call confirmation by default (`Settings → Intelligence → Confirm sensitive actions`). File writes create a backup; deletes go to the Windows Recycle Bin where possible; terminal commands run without a shell and are constrained by an executable allowlist.
 
@@ -123,6 +135,8 @@ Sensitive actions still require a per-call confirmation by default (`Settings �
 | Applications | `list_apps`, `launch_app`, `list_windows` |
 | Screen vision | `see_screen` (attaches the captured desktop image to the model) |
 | Browser | `browser_open`, `browser_search`, `youtube_search` (hand URLs to the system browser) |
+| Computer control | `request_computer_control`, `desktop` (observe and operate Windows apps) |
+| Browser control | `browser` (drive the dedicated IGRIS browser profile) |
 | Memory & system | `save_memory`, `search_memories`, `current_time` |
 
 The model never receives a raw shell. It receives typed tool schemas; the main process validates arguments, checks permissions, applies risk policy, requests approval when needed, enforces timeouts and output caps, and records the run.
@@ -157,7 +171,8 @@ The companion window is retired. IGRIS keeps only the small robot launcher:
 │  OpenRouter / OpenCode) · streaming, tool calls, discovery                     │
 │  ChatEngine → streaming runs, cancellation, tool loop                          │
 │  ToolRuntime → permissions, confirmations, risk, timeouts, audit                │
-│  Services → files, terminal, apps, screen, voice, web handoff                │
+│  Services → files, terminal, apps, screen, voice, web handoff                 │
+│  Control → sessions, PowerShell operator, Playwright profile, HUD              │
 │  Storage → node:sqlite repositories · CredentialStore (DPAPI) · Logger          │
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -179,7 +194,9 @@ IGRIS uses the Electron per-user data directory, normally:
 %APPDATA%\IGRIS\
   data\igris.db          SQLite database (including diagnostic events)
   data\backups\          file-write backups
-  data\screenshots\      screen visions captured by the assistant
+  data\screenshots\      screen vision and desktop-control captures
+  operator\operator.ps1  bundled Windows input/UI Automation helper
+  browser\igris-profile\ dedicated managed browser profile
 ```
 
 Use **Settings → Privacy & data** to export data, clear conversation and memory history, change retention, or disable conversation saving. No telemetry is sent anywhere.
@@ -204,11 +221,13 @@ Use **Settings → Privacy & data** to export data, clear conversation and memor
 ### Verification status
 
 - `npm run typecheck` — passing
-- `npm test` - **79 tests passing** across 10 files
-- `npm run test:e2e` - **7 Electron smoke tests passing**
-- `npm run test:packaged` — packaged `IGRIS.exe` boots, bridges, and routes
+- `npm test` - **137 passing, 1 skipped** across 18 files
+- `npm run test:e2e` - **9 Electron smoke tests passing**
+- `npm run test:packaged` — packaged `IGRIS.exe` boots, bridges, routes, and loads the operator asset and HUD
 - `npm run pack` — passing (`release/win-unpacked/IGRIS.exe`)
 - `npm run dist` — passing (`release/IGRIS-1.0.0-x64-Setup.exe`)
+
+The real Edge control test is opt-in with `IGRIS_BROWSER_SMOKE=1` and uses a local HTTP server plus the dedicated IGRIS browser profile.
 
 Live provider calls are not part of the automated suite because no API key is committed. The adapters, SSE parser, error mapping, and request building are covered; configure a key to exercise a real stream. Manual verification also exercised OpenRouter's free catalogue and a streamed Gemini `gemini-3.6-flash` reply through the chat engine.
 
@@ -224,10 +243,11 @@ src/
     ai/          provider adapters, SSE, HTTP, chat engine
     security/    credentials, path guard, command policy, redaction, errors
     services/    files, terminal, apps, screen, voice, web handoff, provider, settings
+    control/     operator client, desktop executor, managed browser, session policy
     storage/     SQLite database and repositories
     tasks/       task state and orchestration
     tools/       tool registry and runtime
-    windows/     main, mini, paths
+    windows/     main, mini, HUD, paths
     ipc.ts       validated dispatcher and role allowlists
     index.ts     boot, lifecycle, wiring
   preload/       contextBridge and type declarations
@@ -251,9 +271,10 @@ The security model is documented in [docs/SECURITY.md](docs/SECURITY.md). In bri
 - The renderer never receives a stored key; the bridge returns masked hints only.
 - All filesystem access is confined to explicitly approved workspaces with lexical and real-path checks.
 - Terminal commands are parsed without a shell, checked against an executable allowlist, and blocked for destructive git/npm operations.
-- Web tools open Chrome/Edge (the system default) and stop there; IGRIS cannot read, click, or fill pages in it.
+- Web tools open Chrome/Edge (the system default) and stop there; IGRIS cannot read, click, or fill pages in it. An approved `browser` control session uses a separate managed profile instead.
 - Logs and diagnostic exports redact common credential patterns.
 - High-risk actions require confirmation and are recorded in Activity.
+- Desktop control is approved per task, runs unelevated, refuses password fields and UAC/elevated windows, and can be stopped from the HUD or with `Ctrl+Alt+Shift+X`.
 
 Please do not open a public issue containing an API key, personal path, or conversation content. See the security document for reporting guidance.
 
@@ -264,9 +285,10 @@ Please do not open a public issue containing an API key, personal path, or conve
 - **Windows only** at this time. The UI is responsive, but native window and input paths target Windows.
 - **Cloud keys required.** There is no bundled model, no offline inference, and no local fallback.
 - **Unsigned installer.** Code signing is intentionally left to the distributor.
-- **No keyboard or mouse control.** IGRIS cannot type, click, or drive other applications; it acts through tools only.
+- **Desktop control is task-scoped, not a sandbox.** It can operate any unelevated app after approval, but expires after 20 minutes, is capped at 120 actions, and is always visible and stoppable. It cannot operate UAC or elevated windows.
 - **Screen vision is best effort.** Captures depend on display configuration and the permission being granted; images are attached to the model for the current run only.
-- **Web tools only hand off URLs.** IGRIS cannot see, read, or control the default browser, so it cannot bypass site authentication, CAPTCHAs, or anti-bot controls.
+- **Web handoff cannot verify pages.** IGRIS cannot see the default browser, so it cannot bypass site authentication, CAPTCHAs, or anti-bot controls. The managed browser can operate pages, but only in its own profile.
+- **Managed browser logins are separate.** Sites that require your daily session must be signed into the IGRIS profile once.
 - **Live provider behavior varies.** Model IDs, tool-calling support, quotas, and rate limits are controlled by the provider.
 
 ## License

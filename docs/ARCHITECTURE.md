@@ -16,14 +16,16 @@ IGRIS is a Windows desktop application built on Electron. It deliberately keeps 
 main process
 ├── MainWindow          frameless 1440×920 shell, all pages, custom titlebar
 ├── MiniLauncher        112×112 transparent bubble shown on minimize
+├── ControlHud          360×92 frameless control bar, visible only during a control session
 └── Tray                background residency and quick actions
 ```
 
 - All windows use `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`.
 - A `Map<webContents.id, WindowRole>` assigns every window a role. The IPC dispatcher checks the methods allowed for that role.
-- The main window may call every method. The mini launcher may only restore the main window.
+- The main window may call every method. The mini launcher may only restore the main window. The HUD may only read control state and pause, resume, or stop.
 - A 112x112 transparent, always-on-top robot bubble appears when the main window is minimized. It is draggable, restores the workspace on click, and hides when the main window returns.
-- The application is single-instance and tray-resident. Shutdown cancels active chat runs, closes windows, optionally clears history, and closes SQLite cleanly.
+- During an approved control session, a 360×92 always-on-top HUD shows the goal, current action, action count, and Pause/Resume/Stop. It appears with `showInactive()` so it never steals focus, and it hides when the session ends.
+- The application is single-instance and tray-resident. Shutdown cancels active chat runs, releases held input, closes the managed browser, unregisters global shortcuts, closes windows, optionally clears history, and closes SQLite cleanly.
 
 ## Boot sequence
 
@@ -33,18 +35,21 @@ main process
 2. Wait for Electron readiness; apply the Content Security Policy and allow only the microphone permission while denying the rest.
 3. Create the data directories and open `data/igris.db`.
 4. Construct repositories, settings, logger, credential store, provider service, window managers, services, tasks, tools, chat, and IPC.
-5. Mark unfinished tasks as interrupted, apply retention policy, and register the settings listener.
-6. Show the main window, create the tray, and wire the voice transcription service.
-7. Register shutdown hooks: cancel runs, close windows, close the DB, quit.
+5. Copy the bundled `operator.ps1` to `<userData>/operator/`, construct `OperatorClient`, `DesktopService`, and the control `BrowserService`, and wire `ControlSessionService`, the HUD, and the stop hotkey.
+6. Mark unfinished tasks as interrupted, apply retention policy, and register the settings listener.
+7. Show the main window, create the tray, and wire the voice transcription service.
+8. Register shutdown hooks: cancel runs, release input, close the managed browser, close windows, close the DB, quit.
 
 ## Renderer
 
 - React 19 + TypeScript + Vite, `HashRouter` routes: Home, Chat, Projects, Computer, Models, Tools, Activity, Settings, History.
-- Zustand store coordinates settings, providers, tools, health, conversations, tasks, toasts, and confirmations.
+- Zustand store coordinates settings, providers, tools, health, conversations, tasks, toasts, confirmations, and the active control session.
 - The 3D core uses React Three Fiber/Three.js with a procedural scene and renders as a background layer in the Conversation view. `appearance.show3d`, quality, animation intensity, reduced motion, and the selected accent are settings-driven.
 - If WebGL is unavailable, the component renders a static CSS core instead of failing the page.
 - The minimized launcher is a separate HTML entry (`mini.html`) and React root, styled by `mini.css`.
-- Web pages are never rendered inside the app; the assistant's web tools target the Windows default browser.
+- The control HUD is a separate HTML entry (`hud.html`) and React root, styled by `hud.css`. It is deliberately small and independent of the main renderer.
+- The Home terminal status area shows a `CONTROL` strip with the goal, current action, action count, and Pause/Resume/Stop while a session is active.
+- Web pages are never rendered inside the app. The existing web tools hand URLs to the default browser; an approved `browser` control session drives a separate, dedicated Edge/Chrome profile.
 
 ## IPC boundary
 
@@ -93,13 +98,17 @@ OpenRouter Free uses the same compatible adapter but applies a stricter contract
 5. Stream provider events to the renderer. Text arrives incrementally; usage is recorded.
 6. Accumulate tool calls, execute them through `ToolRuntime`, persist tool results, and feed them back into the next model turn.
 7. Repeat until the model finishes or `maxToolIterations` is reached.
-8. Persist the final assistant message and finish the task with a result or a structured failure.
+8. Persist the final assistant message and finish the task with a result or a structured failure; in a `finally`, end any control session bound to the task.
+
+Control runs raise the effective turn limit to at least 30 and prune older tool-result images so at most two screenshots remain in the active context. Each turn re-checks the session, so pause, stop, or expiry takes effect before the next action.
 
 Runs have an `AbortController`, a global deadline, cancellation on app shutdown, per-run confirmation tracking, and replay protection so a repeated tool call cannot loop forever. Errors are serialized as stable codes (`AUTH`, `RATE_LIMIT`, `QUOTA`, `NETWORK`, `TIMEOUT`, `PERMISSION`, etc.) with retryability metadata.
 
 ## Tools
 
-`src/main/tools/registry.ts` defines 22 tools with Zod argument schemas, human titles, categories, risk levels, permission keys, confirmation flags, timeouts, and handlers. Handlers receive resolved services and a signal.
+`src/main/tools/registry.ts` defines 25 tools with Zod argument schemas, human titles, categories, risk levels, permission keys, confirmation flags, timeouts, and handlers. Handlers receive resolved services and a signal.
+
+The three control tools are `request_computer_control`, `desktop`, and `browser`. `request_computer_control` always prompts and creates a task-scoped session. `desktop` and `browser` require that session and its scope, and pass a per-action confirmation callback for close-window, shell-typing, first-launch, and checkout/send gates.
 
 `src/main/tools/toolRuntime.ts` is the gatekeeper:
 
@@ -129,23 +138,28 @@ Tool results are never trusted as UI markup; the renderer treats them as text an
 
 Repositories keep SQL in one place and return shared DTOs. The renderer never talks to SQLite.
 
-## File, terminal, and desktop services
+## File, terminal, desktop, and control services
 
 - **FileService** confines all work to `WorkspaceBoundary` (lexical + real-path checks, junction escape prevention), ignores heavy directories during scans, caps file sizes and result counts, creates backup copies before writes, and uses the Recycle Bin for deletes where possible.
 - **TerminalService** parses commands without a shell, evaluates them with `commandPolicy.ts`, runs in the workspace with a scrubbed environment, and caps output/time.
 - **AppService** launches only a fixed set of verified applications and lists visible window titles when screen access is enabled.
 - **ScreenService** captures the primary display to the app's screenshot directory only after permission; the `see_screen` tool converts the capture into a `ToolImage` the model receives as an inline image.
+- **OperatorClient** supervises one hidden `powershell.exe` per app run. `operator.ps1` compiles an in-box C# helper for `SendInput`, UI Automation, windows, and screenshots. Requests and responses are newline-delimited JSON; no operator data reaches the renderer.
+- **DesktopService** validates `desktop` actions, applies the hard blocks and confirmation gates, resolves apps through the existing allowlist and Start Menu, saves screenshots under `<userData>/screenshots/<taskId>/`, and releases input on stop.
+- **Control BrowserService** lazily launches a dedicated persistent Edge profile (Chrome fallback) through `playwright-core`, snapshots interactive elements with injected refs, blocks downloads/uploads and unsafe URL schemes, and closes on session end or app quit.
+- **ControlSessionService** owns the task-bound session: scope, 20-minute expiry, 120-action budget, pause/resume/stop, and HUD state.
 - **VoiceService** transcribes microphone audio through the resolved default provider's transcription path (Gemini inline audio today) and surfaces a clear error for provider kinds without voice support.
 
-## Web handoff
+## Web handoff and control
 
-`BrowserService` deliberately embeds no browser. Web tools validate a URL and pass it to Windows' default browser.
+The default-browser handoff embeds no browser. Web tools validate a URL and pass it to Windows' default browser.
 
 - Only HTTP(S) URLs are accepted; credentials embedded in URLs are rejected.
 - Named sites ("open YouTube") are opened directly via `browser_open` with their official URL; search-style openers route through the search flow instead.
 - `browser_open`, `browser_search`, and `youtube_search` construct the page URL and call `shell.openExternal`.
-- The assistant cannot read the page, click elements, fill forms, or control playback afterward.
-- What the user does with the page stays entirely inside their own browser and its profile.
+- Without a control session, the assistant cannot read the page, click elements, fill forms, or control playback afterward.
+- With an approved `browser` session, the `browser` tool drives a separate managed Edge/Chrome profile through Playwright. It never attaches to the user's daily profile.
+- What the user does with a handoff page stays entirely inside their own browser and its profile.
 
 ## Error model
 
@@ -160,7 +174,8 @@ Repositories keep SQL in one place and return shared DTOs. The renderer never ta
 
 ## Known architectural limits
 
-- Windows-specific native paths (safeStorage, Recycle Bin, screen, voice) are not abstracted for macOS/Linux.
-- Web tools cannot inspect or verify what the default browser did with a page.
+- Windows-specific native paths (safeStorage, Recycle Bin, screen, voice, `SendInput`, UIA) are not abstracted for macOS/Linux.
+- Web tools cannot inspect or verify what the default browser did with a page; only the managed browser is observable.
+- Native control of an existing browser window is possible through `desktop` but is less reliable than the managed browser.
 - Large files are truncated rather than streamed.
 - No plugin marketplace or third-party tool execution.

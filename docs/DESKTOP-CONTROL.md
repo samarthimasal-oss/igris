@@ -1,8 +1,8 @@
 # Desktop control
 
-Status: **proposed** — implementation has not started.
+Status: **implemented** — shipped on `feature/desktop-control`, cut from `feature/terminal-redesign`.
 
-Target branch: `feature/desktop-control`, cut from `feature/terminal-redesign`.
+Implemented surfaces: the PowerShell operator, desktop executor, managed browser, three model tools, task-scoped sessions, floating HUD, global stop hotkey, approval modal, Home control strip, permission toggles, capability groups, audit through existing tool runs, and the packaged installer.
 
 ## 1. Goal
 
@@ -79,21 +79,24 @@ All privileged work stays in the main process. The renderer only approves, obser
 
 | Component | Responsibility |
 | --- | --- |
-| `OperatorClient` | Spawns and supervises the PowerShell host; JSON-line request/response; timeouts; restart; graceful shutdown |
-| `DesktopControlService` | Validates actions, applies policy, maps coordinates, enforces session scope, records audit, releases input on stop |
-| `UiAutomationService` | Compact UIA tree, element identity, invoke/focus/set-value, stale-ref handling |
-| `BrowserControlService` | Lazily launches the managed browser; tab management; DOM snapshot with refs; actions; download/upload blocks |
-| `ControlSessionService` | Session creation, scope, expiry, pause/stop, action budget, HUD state, per-task binding |
-| `ControlHudManager` | Frameless always-on-top status window; pause/stop; hides when no session |
-| `NavigationResolver` | Resolves an app name to a Start Menu shortcut or the existing allowlist; returns candidates instead of guessing |
+| `OperatorClient` (`src/main/control/operatorClient.ts`) | Spawns and supervises the PowerShell host; JSON-line request/response; timeouts; crash restart; graceful shutdown |
+| `DesktopService` (`src/main/control/desktopService.ts`) | Validates actions, applies policy, maps coordinates, resolves Start Menu shortcuts, enforces session scope, prompts for per-action gates, releases input on stop |
+| `operator.ps1` (`src/main/control/operator.ps1`) | In-box C# helper for `SendInput`, UI Automation, window management, screenshots, and monitor state; refuses password fields |
+| `BrowserService` (`src/main/control/browserService.ts`) | Lazily launches the managed browser; tab management; DOM snapshot with refs; actions; download/upload and unsafe-URL blocks |
+| `ControlSessionService` (`src/main/control/sessionService.ts`) | Session creation, scope, expiry, pause/stop, action budget, HUD state, per-task binding |
+| `ControlHudManager` (`src/main/windows/controlHud.ts`) | 360×92 frameless always-on-top status window; shows without stealing focus; hides when no session |
+| `policy.ts` | Key-chord parsing, window blocklist, URL validation, sensitive-text heuristics |
+| `screenshotEncoder.ts` | Caps captures at 1280 px wide and encodes JPEG for the model |
 
-### New renderer surfaces
+App resolution lives in `DesktopService` rather than a separate resolver: fixed IGRIS allowlist first, then exact Start Menu shortcut (per-user and all-users), then up to five fuzzy candidates returned to the model.
 
-- **Approval prompt** — a dedicated variant of the existing confirmation modal for control requests, with the goal, scope, duration, hard blocks, and a red **Allow control** button.
-- **HUD** — a separate small HTML entry (`hud.html`), not the main React app: goal, current action, action count, elapsed time, Pause/Resume, Stop.
-- **Control badge** — amber `CONTROL` indicator in the terminal status bar while a session is active.
-- **Settings → Permissions** — Desktop control and Browser control toggles with explicit warnings.
-- **Tools page** — new capability groups and live permission state.
+### Renderer surfaces as shipped
+
+- **Approval** — `request_computer_control` always opens the control variant of the existing confirmation modal: goal, scope, safety rules, and the stop hotkey. Inline approvals on the Home page use the same content with an **Allow for this task** action.
+- **HUD** — a separate entry (`hud.html`) with its own React root: goal, current action, action count/budget, Pause/Resume, Stop. It appears bottom-right above the mini launcher and is hidden at session end.
+- **Home control strip** — an amber `CONTROL` row in the terminal status area with the goal, live action, count, and Pause/Resume/Stop.
+- **Settings → Permissions** — `Control this computer` and `Control web pages` toggles, both off by default, plus a warning panel when either is enabled.
+- **Tools page** — `Desktop control` and `Browser control` capability groups with live permission state.
 
 ## 4. Control session
 
@@ -128,6 +131,8 @@ Rules:
 8. **Pause.** Pause blocks the next action; the current action is allowed to finish. Resume continues the same session.
 9. **Forced approval.** `request_computer_control` always prompts, even if `confirmSensitiveActions` is off.
 10. **High-risk gates always prompt.** Closing a window, typing into a shell, first-time app launch, checkout/send heuristics, and similar actions ask even when global confirmations are off. Denying one gate does not end the session.
+11. **The stop hotkey exists only while control exists.** `Ctrl+Alt+Shift+X` is registered when a session starts and unregistered when it ends or the app quits, so IGRIS never holds a global shortcut while idle.
+12. **Pause and stop are main-process facts, not model claims.** Both the HUD and the Home strip call the same bridge methods; the next tool call re-checks the session state before doing anything.
 
 ### Approval copy
 
@@ -140,6 +145,8 @@ The prompt states, in plain language:
 - the stop hotkey,
 - the hard blocks (passwords, UAC, elevated windows, IGRIS’s own window),
 - that every action is recorded locally.
+
+The modal is intentionally not a generic “Allow” dialog: the primary action reads **Allow for this task**, and the rules remain visible at the moment of approval rather than only in documentation.
 
 ## 5. Windows operator
 
@@ -359,16 +366,14 @@ Screenshots, window titles, page text, and app content are untrusted data. They 
 
 ### Audit
 
-- Every `desktop`/`browser` invocation is already a tool run with arguments, result, status, timing, and approval state.
-- Add a small `control_sessions` table: id, task id, goal, scope, started/ended, action count, end reason.
-- Screenshots are saved locally under `userData/screenshots/<session>/` and referenced in the tool result.
-- The HUD shows the user-visible action feed; Activity/Settings can show recent sessions.
+- Every `desktop`/`browser` invocation is a tool run with arguments, result, status, timing, and approval state, visible in Activity.
+- Session lifecycle is logged through the diagnostics logger with the goal, scope, and end reason; no separate table was added in v1.
+- Desktop screenshots are saved locally under `userData/screenshots/<taskId>/` and referenced in the tool result. Browser screenshots stay in memory and are returned as images only.
+- The HUD and Home control strip show the user-visible action feed while the session runs.
 
 ## 9. Model loop
 
-### System prompt changes
-
-Replace the current “there is no keyboard/mouse control” rule with:
+### System prompt changes as shipped
 
 - For any task that requires clicking, typing, scrolling, launching, or driving a browser, call `request_computer_control` first and wait for approval.
 - Work in a loop: observe → one action → observe/verify → repeat. Do not claim success without a tool result.
@@ -380,7 +385,7 @@ Replace the current “there is no keyboard/mouse control” rule with:
 
 ### Budgets
 
-- Control runs may use up to **30 model turns** even if the normal `maxToolIterations` is lower; the session’s 120-action budget still applies.
+- Control runs use `max(maxToolIterations, 30)` model turns, so they always get at least 30 and can use up to the configured clamp of 60. The session’s 120-action budget still applies.
 - Keep at most **2 screenshot images** in the active context; prune older tool-result images before each model turn.
 - Downscale screenshots to 1280 px wide, JPEG quality 70.
 - Cap UIA snapshots at 200 elements, browser snapshots at 150, page text at 8,000 characters, and action results at 8,000 characters.
@@ -398,14 +403,16 @@ Add two permission keys, both off by default:
 
 - `screen` remains required for observation; `desktop` declares `desktopControl` + `screen`.
 - `browserControl` is separate from the existing `browser` handoff permission.
-- Settings shows a warning panel for each, the global stop hotkey, and a “Stop all control” button.
+- Settings shows a warning panel for each and names the global stop hotkey; the Stop action itself lives in the HUD and the Home control strip.
 - `ai.maxToolIterations` clamp rises from 12 to 60; control runs use `max(setting, 30)`.
 - Adding keys is backward compatible because `normalizeSettings` deep-merges with defaults.
+- Enabling either control permission shows an inline caution that desktop control can operate any unelevated app and browser control works only in the dedicated IGRIS profile.
 
 ## 11. Packaging
 
 - Add `playwright-core` (same version as the existing dev dependency) to `dependencies`. It does **not** download browsers; it launches installed Edge/Chrome.
-- Bundle `operator.ps1` as a raw string and write it to `userData` at boot. No `extraResources` needed, and it works inside `app.asar`.
+- `operator.ps1` ships as a real bundled asset through a Vite `generateBundle` plugin. It lands at `out/main/operator.ps1` and is copied to `<userData>/operator/operator.ps1` at boot, so it works inside `app.asar`.
+- The HUD is built as a separate renderer entry (`out/renderer/hud.html`).
 - Expected installer growth: roughly 10–15 MB.
 - Packaged smoke test verifies the operator handshake, a `state` call, and that Edge/Chrome is discovered. It does not move the real mouse.
 
@@ -426,27 +433,28 @@ Add two permission keys, both off by default:
 
 ## 13. Testing
 
-### Unit
+### Unit and integration (shipped)
 
-- Control session: create, scope, expiry, pause, stop, action budget, task end, forced approval.
-- `desktop` schema and policy: password block, elevated block, credential-manager block, terminal-typing gate, close-window gate, Alt+F4 mapping, first-launch gate.
-- `browser`: URL scheme validation, ref parsing, password redaction, snapshot cap, sensitive-page heuristic, downloads blocked.
-- Tool runtime: `forceConfirmation`; `confirm` callback in `ToolContext`; denial does not retry.
-- Operator protocol: JSON framing, timeout, crash restart, release-all on stop (fake host).
-- Settings: new permission keys merge and clamp; old settings upgrade to `false`.
-- System prompt: control instructions present; old “no keyboard/mouse control” text gone.
+- `controlSession.test.ts` — create, scope, expiry, pause, stop, action budget, task end, no-session rejection.
+- `controlPolicy.test.ts` — key chords, password/elevated/credential/self blocks, URL schemes, sensitive text.
+- `desktopService.test.ts` — action dispatch, gates, stale refs, first-launch confirmation, release-all behavior.
+- `browserSnapshot.test.ts` — snapshot caps, refs, password redaction, URL validation.
+- `toolRuntimeControl.test.ts` — `forceConfirmation`, `ToolContext.confirm`, denial outcomes.
+- `operatorProtocol.test.ts` — JSON framing, timeout, crash restart, release-all (fake host).
+- `chatControl.test.ts` — effective 30-turn limit, image pruning, session end, prompt rules.
+- `settings.test.ts` — new permission keys merge; old settings upgrade to `false`; clamp.
+- `tests/integration/browserSmoke.test.ts` — real Edge via `IGRIS_BROWSER_SMOKE=1` against a local HTTP server.
 
-### E2E
+### E2E (shipped)
 
-- Settings shows both new permissions off by default; enabling persists.
-- Tools page shows the desktop/browser capability groups and permission state.
-- Control approval modal renders the goal, scope, stop hotkey, and Allow/Deny.
-- Deny leaves the session absent and no HUD visible.
-- Allow shows the HUD; Pause/Stop update state.
-- HUD closes when the task ends.
-- Existing 7 smoke tests still pass with no layout overflow.
+- Settings shows both new permissions off by default.
+- Tools page shows the desktop/browser capability groups.
+- Control approval modal renders the goal, scope, stop hotkey, and **Allow for this task**.
+- Deny removes the prompt and leaves no session.
+- Starting a session opens the HUD; Pause/Resume sync between the HUD and Home strip; Stop hides the HUD and clears the strip.
+- Existing navigation, appearance, provider, launcher, and overflow smokes still pass.
 
-Use a fake operator and fake browser transport under `IGRIS_E2E` so tests never move the real mouse.
+E2E uses the `IGRIS_E2E` hook `globalThis.__igrisE2E` to start/stop a control session and emit chat events; it never moves the real mouse or opens the real managed browser.
 
 ### Manual acceptance on the laptop
 
@@ -454,21 +462,32 @@ Use a fake operator and fake browser transport under `IGRIS_E2E` so tests never 
 2. “Open Edge, go to example.com, and read the heading.” Verify the managed browser.
 3. “Search YouTube for lofi hip hop and open the first result.” Verify page control.
 4. “Focus VS Code, then minimize it.” Verify window control.
-5. Press the global stop hotkey mid-task; verify keys/buttons are released within one second.
+5. Press `Ctrl+Alt+Shift+X` mid-task; verify keys/buttons are released within one second.
 6. Deny the initial prompt; verify zero actions and no HUD.
 7. Try to type into a password field and Task Manager; verify both are blocked with clear messages.
 8. Type into Windows Terminal; verify the confirmation gate.
-9. Check the audit rows and screenshot directory.
+9. Check the tool-run audit rows and the `userData/screenshots/<taskId>/` directory.
 10. Rebuild the installer and run the packaged smoke test.
 
+### Verification results at handoff
+
+- `npm run typecheck` — pass (node + web).
+- `npm test` — 137 passed, 1 skipped across 18 files.
+- `npm run test:e2e` — 9/9 passed.
+- `IGRIS_BROWSER_SMOKE=1` real Edge integration — pass.
+- `npm run test:packaged` — pass.
+- `npm run dist` — produces `release/IGRIS-1.0.0-x64-Setup.exe`.
+
 ## 14. Rollout
+
+All four phases shipped on `feature/desktop-control`:
 
 1. **Foundation** — permissions, session service, operator handshake, HUD, approval prompt, global stop.
 2. **Desktop** — pointer/keyboard, window state/focus/close, screenshots, UIA, app resolution, policy gates.
 3. **Browser** — managed Edge profile, Playwright service, snapshot refs, actions, gates.
-4. **Hardening** — system prompt, image/step budgets, audit table, tests, docs, installer, manual acceptance.
+4. **Hardening** — system prompt, image/step budgets, audit via tool runs, tests, docs, installer.
 
-Each phase lands as a reviewable commit on `feature/desktop-control`. The terminal redesign branch remains untouched.
+The terminal redesign branch remains untouched.
 
 ## 15. Explicit limitations
 
@@ -479,6 +498,9 @@ Each phase lands as a reviewable commit on `feature/desktop-control`. The termin
 - Screen reading can expose anything visible, including secrets; that is why control is per-task, visible, and stoppable.
 - A determined malicious model could still misuse approved control. The session, HUD, audit log, and stop are the mitigations; this is not a sandbox.
 
-## 16. Approval
+## 16. Operating notes
 
-This design is ready for review. Implementation starts only after the design is approved.
+- The operator is written to `<userData>/operator/operator.ps1` at boot from the bundled asset. If PowerShell is blocked by policy or antivirus, the three control tools fail with a clear “desktop control is unavailable” error and the rest of IGRIS keeps working.
+- The managed browser profile is `<userData>/browser/igris-profile` and is created on first launch. Sign-ins there persist across restarts and are separate from the user’s daily browser.
+- The operator is stopped when the app quits. `releaseAll()` is best-effort and is skipped when the operator is not running, so pause/stop never spawns PowerShell just to release keys.
+- If the HUD is hidden behind another always-on-top app, the Home control strip and `Ctrl+Alt+Shift+X` remain available.

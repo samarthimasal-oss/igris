@@ -628,6 +628,18 @@ export class BrowserService {
     ctx: BrowserRunContext
   ): Promise<{ text: string; denied?: boolean }> {
     const keys = parseKeyChord(String(args.key ?? ''))
+    const focused = await page.evaluate(() => {
+      const active = document.activeElement as HTMLInputElement | null
+      return {
+        password: active?.tagName === 'INPUT' && active.type === 'password'
+      }
+    })
+    if (focused.password) {
+      throw new AppError(
+        'PERMISSION',
+        'IGRIS will not send keys to a password field. Ask the user to type the password.'
+      )
+    }
     if (keys.length === 1 && ['enter', 'return'].includes(keys[0]!.toLowerCase())) {
       const facts = await page.evaluate(() => {
         const active = document.activeElement as HTMLElement | null

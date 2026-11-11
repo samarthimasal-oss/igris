@@ -18,6 +18,7 @@ import type {
   ChatHandle,
   ChatMessage,
   ChatSendInput,
+  ControlEvent,
   ControlSessionState,
   Conversation,
   ConversationSummary,
@@ -207,8 +208,7 @@ const bridge: IgrisBridge = {
   events: {
     onDraft: (listener: (event: DraftEvent) => void) => subscribe(IPC_DRAFT_EVENT, listener),
     onNavigate: (listener: (event: NavigateEvent) => void) => subscribe(IPC_NAVIGATE_EVENT, listener),
-    onControl: (listener: (state: ControlSessionState | null) => void) =>
-      subscribe(IPC_CONTROL_EVENT, listener)
+    onControl: (listener: (event: ControlEvent) => void) => subscribe(IPC_CONTROL_EVENT, listener)
   }
 }
 

@@ -60,6 +60,8 @@ const PERMISSION_ORDER: PermissionKey[] = [
   'terminal',
   'appLaunch',
   'browser',
+  'browserControl',
+  'desktopControl',
   'screen',
   'voice'
 ]
@@ -723,7 +725,9 @@ export function SettingsPage() {
 
             <Alert tone="warning" title="You are granting real access">
               File writes create backups, terminal commands are allowlisted, and launch targets are
-              fixed. These safeguards reduce risk but do not replace your review.
+              fixed. Computer control can move your mouse and type in other apps, but only inside a
+              task you explicitly approve. These safeguards reduce risk but do not replace your
+              review.
             </Alert>
 
             <div className="permission-settings">
@@ -748,6 +752,15 @@ export function SettingsPage() {
                 )
               })}
             </div>
+
+            {settings.permissions.desktopControl || settings.permissions.browserControl ? (
+              <Alert tone="danger" title="Computer control is enabled">
+                Each task still needs its own approval. During an approved task IGRIS can see the
+                screen, click, type and drive its own Edge profile. Password fields, UAC/elevated
+                windows, IGRIS windows, downloads and uploads stay blocked. Press Ctrl+Alt+Shift+X
+                or the Stop button to end control immediately.
+              </Alert>
+            ) : null}
           </Card>
 
           <Card className="settings-card" id="settings-voice">

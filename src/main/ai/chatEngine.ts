@@ -23,6 +23,7 @@ import type {
 import type { TaskService } from '../tasks/taskService'
 import type { ToolRuntime } from '../tools/toolRuntime'
 import type { createToolRegistry } from '../tools/registry'
+import type { ControlSessionService } from '../control/sessionService'
 import type { ModelMessage, ModelTool, ProviderStreamEvent } from '../ai/types'
 
 type ToolRegistry = ReturnType<typeof createToolRegistry>
@@ -36,6 +37,7 @@ export interface ChatDependencies {
   settings: SettingsService
   tools: ToolRegistry
   toolRuntime: ToolRuntime
+  control: ControlSessionService
   logger: Logger
   emit: (event: ChatEvent) => void
 }
@@ -80,7 +82,26 @@ interface StartOptions {
 
 const MAX_USER_MESSAGE = 40_000
 const MAX_TOTAL_CONTEXT_CHARS = 60_000
+const MAX_CONTEXT_IMAGES = 2
 const RUN_TIMEOUT_MS = 10 * 60 * 1000
+
+/** Keeps only the newest screenshots so vision tokens stay bounded. */
+export function pruneContextImages(messages: ModelMessage[], max = MAX_CONTEXT_IMAGES): void {
+  let kept = 0
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]!
+    if (!message.images?.length) continue
+    const room = max - kept
+    if (room <= 0) {
+      delete message.images
+      continue
+    }
+    if (message.images.length > room) {
+      message.images = message.images.slice(message.images.length - room)
+    }
+    kept += message.images.length
+  }
+}
 
 export class ChatEngine {
   private readonly runs = new Map<string, ActiveRun>()
@@ -361,8 +382,17 @@ Operating rules:
 4. Before modifying files, inspect the relevant content. Prefer small, precise edits and tests. Do not run destructive commands. If a tool is denied, explain what permission or confirmation is needed.
 5. The runtime enforces permissions and asks the user to approve sensitive actions. You may call a tool once; do not repeat a denied or declined action unless the user asks.
 6. Do not print, guess or request API keys, passwords, tokens or other secrets. IGRIS stores provider keys with Windows DPAPI.
-7. There is no trading functionality, no local model inference, and no keyboard/mouse control: IGRIS cannot type, click or drive other apps. Ask the user to perform the final action in their app yourself.
+7. Do not print, guess or request API keys, passwords, tokens or other secrets. IGRIS stores provider keys with Windows DPAPI. Never type a password into any app or web page; ask the user to enter it.
 8. If the user asks you to do something outside your tools, say so plainly and suggest an alternative. Keep context bounded; do not request the entire drive or every conversation.
+9. There is no trading functionality and no local model inference. Use the configured cloud providers only.
+
+Computer control (when the user asks you to operate apps or the web):
+- Call request_computer_control once per task with a clear goal and the narrowest scope that works. Wait for approval; if the user declines, stop and explain.
+- Then work in a loop: observe (desktop screenshot/elements or browser snapshot), take exactly one action, observe again to verify. Never claim success without a tool result that shows it.
+- Prefer desktop elements refs and browser snapshot refs over guessed coordinates. Restore/focus a window before interacting with it.
+- After two failed attempts at the same action, stop and explain instead of thrashing.
+- The runtime always blocks password fields, UAC/elevated windows, credential managers, and IGRIS's own windows. Closing a window, typing into a shell, first-time app launches, and checkout/payment/send clicks always require the user's confirmation. A denied gate is final; do not retry it.
+- A control session ends when this task ends, after 20 minutes, or when the user presses Stop or Ctrl+Alt+Shift+X.
 
 Desktop awareness (important):
 - The user speaks like a person ("edit my code", "open YouTube", "see my screen") and never gives file paths. Use list_windows and see_screen to discover the actual context: which app is focused, which project is open in VS Code, which file is on screen, what the browser shows.
@@ -426,6 +456,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
       const modelMessages = [...history]
       let iteration = 0
       let limitReached = false
+      let iterationLimit = settings.ai.maxToolIterations
 
       while (true) {
         if (active.controller.signal.aborted) {
@@ -436,7 +467,11 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
           active.controller.abort()
           throw new AppError('CANCELLED', 'The task was cancelled.')
         }
-        if (iteration >= settings.ai.maxToolIterations) {
+        const controlSession = this.deps.control.getForTask(active.taskId)
+        iterationLimit = controlSession
+          ? Math.max(settings.ai.maxToolIterations, controlSession.maxTurns)
+          : settings.ai.maxToolIterations
+        if (iteration >= iterationLimit) {
           limitReached = true
           break
         }
@@ -448,6 +483,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
         ).id
         this.emit({ type: 'status', runId: active.runId, status: active.provider.runtime.supportsTools ? 'thinking' : 'thinking' })
 
+        pruneContextImages(modelMessages)
         const turn = await this.streamTurn(active, {
           model: active.provider.model,
           sessionId: active.conversationId,
@@ -557,6 +593,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
             content: result.text,
             images: result.images
           })
+          pruneContextImages(modelMessages)
           this.deps.tasks.finishStep(
             step.id,
             result.ok ? 'completed' : result.denied ? 'cancelled' : 'failed',
@@ -569,7 +606,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
       if (limitReached) {
         throw new AppError(
           'PROVIDER',
-          `IGRIS stopped after the configured limit of ${settings.ai.maxToolIterations} model iterations. The task may be incomplete.`
+          `IGRIS stopped after the configured limit of ${iterationLimit} model iterations. The task may be incomplete.`
         )
       }
       if (!active.assistantText.trim()) {
@@ -680,6 +717,11 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
     } finally {
       active.finished = true
       if (active.deadline) clearTimeout(active.deadline)
+      try {
+        this.deps.control.endTask(active.taskId, 'task ended')
+      } catch {
+        // Control cleanup must never break run cleanup.
+      }
       for (const confirmation of active.confirmations.values()) {
         clearTimeout(confirmation.timer)
         active.controller.signal.removeEventListener('abort', confirmation.abortHandler)

@@ -116,6 +116,9 @@ describe.skipIf(!enabled)('managed browser smoke test', () => {
       service.run({ action: 'type', selector: '#password', text: 'hunter2' }, ctx)
     ).rejects.toThrow(/password/i)
 
+    await service.run({ action: 'click', selector: '#password' }, ctx)
+    await expect(service.run({ action: 'press', key: 'a' }, ctx)).rejects.toThrow(/password/i)
+
     await expect(
       service.run({ action: 'click', selector: '#resume' }, ctx)
     ).rejects.toThrow(/upload/i)

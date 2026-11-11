@@ -322,6 +322,7 @@ public static class IgrisOperator
     public static object KeyDown(string key)
     {
         Failsafe();
+        EnsureFocusedInputAllowed();
         ushort vk = VirtualKey(key);
         KeyEvent(vk, true);
         if (PressedKeys.Add(vk)) PressedOrder.Add(vk);
@@ -340,6 +341,7 @@ public static class IgrisOperator
     public static object KeyPress(string key)
     {
         Failsafe();
+        EnsureFocusedInputAllowed();
         ushort vk = VirtualKey(key);
         PressedKeys.Add(vk); PressedOrder.Add(vk);
         try { KeyEvent(vk, true); KeyEvent(vk, false); }
@@ -350,6 +352,7 @@ public static class IgrisOperator
     public static object KeyChord(string[] keys)
     {
         Failsafe();
+        EnsureFocusedInputAllowed();
         if (keys == null || keys.Length == 0) throw new ArgumentException("A key chord is required.");
         var pressed = new List<ushort>();
         try
@@ -388,6 +391,7 @@ public static class IgrisOperator
     public static object TypeText(string text, int intervalMs)
     {
         Failsafe();
+        EnsureFocusedInputAllowed();
         if (text == null) text = "";
         foreach (char c in text)
         {
@@ -752,6 +756,24 @@ public static class IgrisOperator
         if (!element.Current.IsEnabled)
             throw new InvalidOperationException("The element is disabled.");
         return element;
+    }
+
+    // Native typing and key input must never land in a password field. UIA tells
+    // us which control currently has keyboard focus; if it is a password, fail
+    // before any input is injected.
+    static void EnsureFocusedInputAllowed()
+    {
+        AutomationElement focused = null;
+        try { focused = AutomationElement.FocusedElement; }
+        catch { return; }
+        if (focused == null) return;
+        try
+        {
+            if (focused.Current.IsPassword)
+                throw new InvalidOperationException("IGRIS will not type into a password field. Ask the user to type it.");
+        }
+        catch (InvalidOperationException) { throw; }
+        catch { }
     }
 
     public static object InvokeElement(long handle, string runtimeId)

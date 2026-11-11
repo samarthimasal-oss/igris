@@ -27,8 +27,8 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **79 passing**, 10 files, ~1 s |
-| `npm run test:e2e` | **7 passing**, 1 worker, ~8 s |
+| `npm test` | **137 passing**, 1 skipped, 18 files |
+| `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
 | `npm run dist` | Pass; `release/IGRIS-1.0.0-x64-Setup.exe` |
@@ -106,6 +106,55 @@ Live provider calls are intentionally not automated because no API key is presen
 - cancellation from every active state;
 - invalid transition errors.
 
+### `tests/unit/controlSession.test.ts`
+
+- create and bind a session to a task;
+- scope enforcement for desktop, browser, and both;
+- 20-minute expiry with a fake clock;
+- pause/resume, stop, and task end;
+- action budget and no-session rejection.
+
+### `tests/unit/controlPolicy.test.ts`
+
+- key-chord parsing and rejection;
+- password, elevated, credential-manager, and self-window blocks;
+- HTTP(S)-only URL validation;
+- sensitive-text heuristics for checkout/send patterns.
+
+### `tests/unit/desktopService.test.ts`
+
+- action dispatch and target resolution;
+- close-window, shell-typing, and first-launch confirmations;
+- password-field refusal and stale UIA refs;
+- release-all behavior when the operator is absent.
+
+### `tests/unit/operatorProtocol.test.ts`
+
+- JSON-line framing, handshake, and request/response correlation;
+- request timeout and crash restart;
+- release-all on stop;
+- clean disposal.
+
+### `tests/unit/browserSnapshot.test.ts`
+
+- snapshot caps and ref injection;
+- password-value redaction;
+- URL scheme rejection;
+- stale-ref errors.
+
+### `tests/unit/toolRuntimeControl.test.ts`
+
+- `forceConfirmation` always prompts;
+- `ToolContext.confirm` denial paths;
+- denied results are returned to the model without retry.
+
+### `tests/unit/chatControl.test.ts`
+
+- control runs use at least 30 turns;
+- context keeps at most two screenshots;
+- session ends in `finally`;
+- system prompt includes control and stop rules.
+
 ## Integration tests
 
 `tests/integration/database.test.ts` uses an in-memory `node:sqlite` database and the real repositories:
@@ -119,6 +168,15 @@ Live provider calls are intentionally not automated because no API key is presen
 - workspace deduplication by path, kind updates, removal.
 
 No temporary database files are left behind.
+
+`tests/integration/browserSmoke.test.ts` is opt-in and uses a real installed browser:
+
+```powershell
+$env:IGRIS_BROWSER_SMOKE = "1"
+npm test
+```
+
+It starts a local HTTP server, launches the managed Edge profile, navigates, snapshots, clicks, types, and verifies the result. It never touches the user's daily browser profile. Without the variable the test is skipped.
 
 ## Electron end-to-end tests
 
@@ -138,6 +196,8 @@ Coverage:
 5. **OpenCode preset** — selecting OpenCode fills the gateway endpoint.
 6. **OpenRouter preset** — selecting OpenRouter Free fills the locked endpoint and shows the free-only notice.
 7. **Minimize launcher** - minimizes the workspace, verifies the robot bubble opens, clicks it, and confirms the main window is restored and the bubble hides.
+8. **Control HUD** — starts a session through the E2E hook, verifies the HUD and Home strip show the goal, pauses/resumes from both surfaces, stops, and confirms the HUD hides and the strip clears.
+9. **Control approval** — emits a `request_computer_control` confirmation, verifies the goal, **Allow for this task**, and stop hotkey copy, then resolves it as denied and confirms the modal closes.
 
 The test profile is removed after the run. Playwright traces are retained on failure under `test-results/`.
 
@@ -149,7 +209,7 @@ The test profile is removed after the run. Playwright traces are retained on fai
 npm run test:packaged
 ```
 
-It verifies that the ASAR bundle includes the preload and renderer, that `node:sqlite` loads inside the packaged Electron runtime, that the onboarding gate can be dismissed, that the bridge is present, and that client-side routing reaches Settings. This catches packaging regressions that source-mode E2E cannot.
+It verifies that the ASAR bundle includes the preload and renderer, that `node:sqlite` loads inside the packaged Electron runtime, that the onboarding gate can be dismissed, that the bridge is present, and that client-side routing reaches Settings. It also checks that the packaged main bundle contains the operator asset and HUD renderer entry, so desktop control does not fail only after installation. This catches packaging regressions that source-mode E2E cannot.
 
 ### Adding an end-to-end test
 
@@ -208,6 +268,21 @@ Before releasing a build:
 - [ ] Screen vision with permission → capture lands in the local screenshot folder and the image is attached to the model for that run.
 - [ ] Browser: open a page, web search, and YouTube search all open in the default browser; IGRIS reports it cannot read or control the page.
 
+### Desktop and browser control
+
+- [ ] Settings shows `Control this computer` and `Control web pages` off by default; enabling persists across restart.
+- [ ] `request_computer_control` always prompts, even with sensitive-action confirmations off.
+- [ ] Deny leaves no session and no HUD.
+- [ ] Approve opens the HUD; Pause blocks the next action; Resume continues; Stop hides the HUD and releases input.
+- [ ] `Ctrl+Alt+Shift+X` stops an active task; the shortcut is absent when no session is running.
+- [ ] “Open Notepad and type a haiku” completes and can be verified with `elements` or a screenshot.
+- [ ] Typing into a password field and Task Manager is refused with a clear message.
+- [ ] Typing into Windows Terminal asks for confirmation.
+- [ ] Closing a window asks for confirmation; first launch of a new app asks once per session.
+- [ ] The managed browser opens with the dedicated profile, navigates to a local or public page, snapshots, clicks, and types.
+- [ ] `file://`, `javascript:`, and `data:` URLs are rejected by the browser tool; downloads/uploads are blocked.
+- [ ] Browser screenshots stay at or below 1280 px and the model context keeps at most two images.
+
 ### Windows behavior
 
 - [ ] Minimize/restore, the draggable robot bubble, tray menu, close-to-tray setting, second-instance focus.
@@ -226,7 +301,7 @@ Before releasing a build:
 ## What is not covered
 
 - Live cloud responses and provider-specific model behavior.
-- Screen/input automation across multi-monitor and DPI configurations.
+- Exhaustive input automation across every multi-monitor and DPI configuration; the operator is DPI-aware but coverage is a smoke test plus manual checks.
 - Arbitrary third-party websites or sites requiring authentication.
 - Installer upgrade/uninstall flows under all Windows policies.
 - Code signing and SmartScreen reputation.

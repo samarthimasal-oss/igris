@@ -57,7 +57,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
-          mini: resolve('src/renderer/mini.html')
+          mini: resolve('src/renderer/mini.html'),
+          hud: resolve('src/renderer/hud.html')
         }
       }
     }

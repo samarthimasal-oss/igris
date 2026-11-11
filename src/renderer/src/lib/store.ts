@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ChatSendInput,
   ConfirmationRequest,
+  ControlSessionState,
   Conversation,
   ConversationSummary,
   DeepPartial,
@@ -74,6 +75,7 @@ interface AppStore {
   messages: ChatMessage[]
   loadingConversation: boolean
   runs: Record<string, ActiveRun>
+  control: ControlSessionState | null
   pendingSend: { content: string; workspaceId: string | null } | null
   confirmations: PendingConfirmation[]
   toasts: ToastItem[]
@@ -98,6 +100,7 @@ interface AppStore {
   dismissToast: (id: string) => void
   handleChatEvent: (event: ChatEvent) => void
   handleTaskEvent: () => void
+  setControl: (state: ControlSessionState | null) => void
   loadConversation: (id: string) => Promise<void>
   newConversation: () => void
   deleteConversation: (id: string) => Promise<void>
@@ -141,6 +144,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   messages: [],
   loadingConversation: false,
   runs: {},
+  control: null,
   pendingSend: null,
   confirmations: [],
   toasts: [],
@@ -160,7 +164,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ booting: true, bootError: null })
     bootPromise = (async () => {
       try {
-        const [settings, providers, system, health, tools, workspaces, conversations, tasks] =
+        const [settings, providers, system, health, tools, workspaces, conversations, tasks, control] =
           await Promise.all([
             bridge.settings.get(),
             bridge.providers.list(),
@@ -169,7 +173,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
             bridge.tools.list(),
             bridge.projects.list(),
             bridge.conversations.list(),
-            bridge.tasks.list({ limit: 80 })
+            bridge.tasks.list({ limit: 80 }),
+            bridge.control.state().catch(() => null)
           ])
         const preferred = chooseProvider(providers)
         set({
@@ -183,6 +188,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           workspaces,
           conversations,
           tasks,
+          control,
           onboardingOpen: !settings.onboardingComplete,
           preferredProviderId: preferred?.id ?? null,
           preferredWorkspaceId: workspaces[0]?.id ?? null
@@ -502,6 +508,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   handleTaskEvent: () => {
     void get().refreshTasks()
   },
+
+  setControl: (control) => set({ control }),
 
   loadConversation: async (id) => {
     const bridge = api()

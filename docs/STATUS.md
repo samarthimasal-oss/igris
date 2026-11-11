@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0  
 **Target:** Windows 10/11 x64  
-**State:** Feature-complete for the defined scope; verified with automated tests and a packaged build. Live cloud-provider behavior requires your own API key.
+**State:** Feature-complete for the defined scope, including task-scoped Windows desktop and browser control; verified with automated tests and a packaged build. Live cloud-provider behavior requires your own API key.
 
 ## Requirement coverage
 
@@ -15,16 +15,18 @@
 | Persistent history | Complete | SQLite conversations/messages, summaries, search, export |
 | Model management | Complete | Add/edit/test/remove providers, model discovery, default routing |
 | Secure API keys | Complete | Windows DPAPI via `safeStorage`; main-process only; masked DTOs |
-| Permissioned tools | Complete | 8 permissions, 22 tools, risk levels, confirmations, timeouts |
+| Permissioned tools | Complete | 10 permissions, 25 tools, risk levels, confirmations, timeouts |
 | Task/activity tracking | Complete | Tasks, steps, tool runs, approvals, diagnostics |
 | Cancellation | Complete | Abort controllers, pending-approval rejection, shutdown cancellation |
 | Mini robot launcher | Complete | Minimize shows a compact draggable robot bubble; restore via click or tray; no companion window |
-| Browser assistance | Complete | Default-browser handoff: open, search, YouTube; no page read/click/fill |
+| Browser assistance | Complete | Default-browser handoff plus a separate managed browser profile for approved control |
+| Desktop control | Complete | PowerShell/C# operator, UI Automation, windows, input, screenshots, policy gates |
+| Control safety | Complete | One approval per task, 20-minute expiry, 120 actions, HUD, Pause/Stop, global stop hotkey |
 | Coding/filesystem assistant | Complete | Project scan, tree, editor, search, patch, backups, checkpoints |
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
 | Windows 10/11 packaging | Complete | NSIS installer built at `release/IGRIS-1.0.0-x64-Setup.exe` |
-| Tests | Complete | 79 unit/integration + 7 Electron E2E passing |
+| Tests | Complete | 137 unit/integration (1 skipped) + 9 Electron E2E passing |
 | Documentation | Complete | README + architecture, security, testing, status docs |
 | Secrets excluded from git | Complete | `.gitignore`; no keys or `.env` files in the tree |
 
@@ -32,12 +34,14 @@
 
 ```text
 npm run typecheck   PASS
-npm test            10 files, 79 tests PASS
-npm run test:e2e    7 tests PASS
-npm run test:packaged PASS (packaged IGRIS.exe)
+npm test            18 files, 137 passed, 1 skipped
+npm run test:e2e    9 tests PASS
+npm run test:packaged PASS (packaged IGRIS.exe, operator asset, HUD)
 npm run pack        PASS -> release/win-unpacked/IGRIS.exe
 npm run dist        PASS -> release/IGRIS-1.0.0-x64-Setup.exe
 ```
+
+Real Edge control smoke (`IGRIS_BROWSER_SMOKE=1`): PASS against a local HTTP server using the dedicated IGRIS profile.
 
 OpenCode Console model discovery: PASS against the live gateway catalogue; free-tier models are excluded because OpenCode rejects non-OpenCode clients. A chat request requires account credits or a Go plan.
 
@@ -53,7 +57,8 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Con
 - **Built-in `node:sqlite`:** avoids a native addon and keeps persistence in the main process.
 - **Cloud only:** no Ollama, local weights, or hidden fallback. The app refuses to answer without a configured provider.
 - **No trading features:** explicitly excluded.
-- **No embedded browser:** web pages open in the Windows default browser (Chrome/Edge). IGRIS cannot read or control those pages, by design.
+- **No default-profile browser automation:** web handoff opens the user's own browser, which IGRIS cannot read. Approved browser control uses a separate persistent IGRIS Edge/Chrome profile so the user's daily sessions are never exposed.
+- **Unelevated by design:** desktop control uses `SendInput` and UI Automation and refuses across UIPI boundaries rather than requesting elevation.
 - **Unsigned installer:** signing is a distribution decision; no certificate is included.
 
 ## Known limitations
@@ -62,17 +67,19 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Con
 2. **Unsigned build.** Windows SmartScreen may warn. Production distribution should sign the installer.
 3. **Windows-specific.** Screen vision, voice, DPAPI, Recycle Bin are implemented for Windows only.
 4. **Terminal allowlist is not a sandbox.** Allowed tools can execute project code (`npm run`, `node -e`, tests, hooks). The permission and confirmations are risk controls, not isolation.
-5. **No keyboard or mouse control.** IGRIS cannot type, click, or drive applications; it acts through permissioned tools only.
-6. **Web tools only hand off URLs.** They cannot read or verify pages in the default browser, bypass auth/CAPTCHA, or observe what the user does with the page.
-7. **Database is not encrypted.** Only provider keys are encrypted; history and backups rely on Windows account ACLs.
-8. **Large files and scans are truncated.** This is intentional to protect context, memory, and latency.
+5. **Desktop control needs PowerShell and an interactive session.** If PowerShell is blocked by policy or antivirus, control tools fail with a clear error. IGRIS cannot operate the lock screen or elevated windows.
+6. **Control is task-scoped, not a sandbox.** An approved model can operate any unelevated app and read anything visible. The approval, HUD, 20-minute expiry, action budget, and stop hotkey are mitigations.
+7. **Web handoff cannot verify pages.** The managed browser can, but only within its own profile; sites requiring the user's daily login must be signed into the IGRIS profile once.
+8. **Database is not encrypted.** Only provider keys are encrypted; history and backups rely on Windows account ACLs.
+9. **Large files and scans are truncated.** This is intentional to protect context, memory, and latency.
 
 ## Future work
 
 - Code signing and automatic updates (with a verified signature chain).
 - Encrypted local database option.
 - Provider-specific live integration tests in CI using short-lived test keys.
-- Multi-monitor screen-region selection and OCR.
+- OCR and screen-region selection as a fallback when UI Automation is thin.
+- Richer control-session audit view and per-session replay.
 - Richer diff review before file writes.
 - Per-workspace permission profiles.
 - macOS/Linux window and credential abstractions.
@@ -89,8 +96,12 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Con
 - [x] README and security/architecture/testing docs written.
 - [x] `.gitignore` excludes builds, dependencies, test artifacts, screenshots, and secrets.
 - [x] Initialized git, created [`samarthimasal-oss/igris`](https://github.com/samarthimasal-oss/igris), committed, pushed `main`, and verified the remote commit.
+- [x] Implemented and verified task-scoped desktop and browser control on `feature/desktop-control`.
+- [x] Rebuilt the installer with the final operator script and HUD; packaged smoke passes.
 
-**Initial release commit:** `c315cd7a09641a33d0337214c607a12f9b32e447`  
-**Remote:** `https://github.com/samarthimasal-oss/igris` (public, branch `main`)
+- **Initial release commit:** `c315cd7a09641a33d0337214c607a12f9b32e447`
+- **Remote:** `https://github.com/samarthimasal-oss/igris`
+- **Desktop-control branch:** `feature/desktop-control`
+- **Installer SHA-256:** `0CAB8F98F81684A6CB7645F4E402A653163D5393AB97A408DEF1354047E8B868`
 
 The NSIS installer is built locally but intentionally not committed. It is unsigned and is not attached to a GitHub release.

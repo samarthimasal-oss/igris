@@ -1,6 +1,7 @@
 import {
   app,
   dialog,
+  globalShortcut,
   ipcMain,
   Menu,
   nativeImage,
@@ -12,9 +13,11 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   IPC_CHAT_EVENT,
-  IPC_TASK_EVENT
+  IPC_CONTROL_EVENT,
+  IPC_TASK_EVENT,
+  type WindowRole
 } from '@shared/ipc'
-import type { ChatEvent, Settings } from '@shared/types'
+import type { ChatEvent, ControlScope, Settings } from '@shared/types'
 import { Database } from './storage/database'
 import {
   ConversationRepository,
@@ -47,16 +50,19 @@ import { encodeScreenshotBuffer, encodeScreenshotFile } from './control/screensh
 import { ChatEngine } from './ai/chatEngine'
 import { MainWindowManager } from './windows/mainWindow'
 import { MiniLauncherManager } from './windows/miniWindow'
+import { ControlHudManager } from './windows/controlHud'
 import { createIpcDispatcher, type AppContext } from './ipc'
 import { TRAY_ICON_PNG } from './trayIcon'
 
 const startedAt = new Date().toISOString()
 const isDev = Boolean(process.env.ELECTRON_RENDERER_URL)
 const e2e = Boolean(process.env.IGRIS_E2E)
+const STOP_HOTKEY = 'Control+Alt+Shift+X'
 let db: Database | null = null
 let tray: Tray | null = null
 let mainWindow: MainWindowManager | null = null
 let miniLauncher: MiniLauncherManager | null = null
+let controlHud: ControlHudManager | null = null
 let operatorClient: OperatorClient | null = null
 let desktopControl: DesktopService | null = null
 let browserControl: ControlBrowserService | null = null
@@ -117,8 +123,10 @@ async function start(): Promise<void> {
     try {
       mainWindow?.setQuitting(true)
       miniLauncher?.setQuitting(true)
+      controlHud?.setQuitting(true)
       chat?.cancelAll('shutdown')
       miniLauncher?.close()
+      controlHud?.close()
       try {
         void desktopControl?.releaseAll()
         void browserControl?.stop()
@@ -149,6 +157,7 @@ async function start(): Promise<void> {
   })
   app.on('will-quit', () => {
     if (dispatcherChannel) ipcMain.removeHandler(dispatcherChannel)
+    globalShortcut.unregisterAll()
     operatorClient?.dispose()
     tray?.destroy()
     tray = null
@@ -186,7 +195,7 @@ async function boot(): Promise<void> {
   const credentials = new CredentialStore()
   const providers = new ProviderService(providerRepo, credentials, appLogger)
   const voice = new VoiceService(providers, appLogger)
-  const roles = new Map<number, 'main' | 'mini'>()
+  const roles = new Map<number, WindowRole>()
 
   const main = new MainWindowManager(roles, settings, appLogger)
   mainWindow = main
@@ -266,6 +275,9 @@ async function boot(): Promise<void> {
     apps,
     screen,
     browser: browserService,
+    control,
+    desktop: desktopControlService,
+    managedBrowser: browserControlService,
     memories: memoryRepo,
     settings: () => settings.get(),
     logger: appLogger
@@ -290,10 +302,58 @@ async function boot(): Promise<void> {
     settings,
     tools,
     toolRuntime,
+    control,
     logger: appLogger,
     emit: emitChat
   })
   chat = chatEngine
+
+  const hud = new ControlHudManager(roles, appLogger)
+  controlHud = hud
+
+  const stopControl = async (reason: string): Promise<void> => {
+    try {
+      control.endAll(reason)
+      for (const runId of chatEngine.activeRunIds()) chatEngine.cancel(runId)
+      await desktopControlService.releaseAll()
+      await Promise.allSettled([browserControlService.stop(), operator.stop()])
+    } catch (error) {
+      appLogger.warn('control', `Control stop failed: ${String(error)}`)
+    }
+  }
+
+  control.onChange((state) => {
+    main.send(IPC_CONTROL_EVENT, { type: 'changed', state })
+    hud.update(state)
+    if (!state) {
+      globalShortcut.unregister(STOP_HOTKEY)
+      // The session ended, expired, or was stopped: release held input and
+      // close the managed browser so nothing keeps running in the background.
+      void desktopControlService.releaseAll()
+      void browserControlService.stop()
+      return
+    }
+    try {
+      if (!globalShortcut.isRegistered(STOP_HOTKEY)) {
+        globalShortcut.register(STOP_HOTKEY, () => {
+          appLogger.info('control', 'Emergency stop hotkey pressed.')
+          void stopControl('stop hotkey')
+        })
+      }
+    } catch (error) {
+      appLogger.warn('control', `The stop hotkey could not be registered: ${String(error)}`)
+    }
+  })
+
+  if (e2e) {
+    const hooks = {
+      startControl: (goal: string, scope: ControlScope) =>
+        control.create(`e2e-${Date.now()}`, goal, scope),
+      stopControl: () => control.endAll('e2e stop'),
+      emitChatEvent: (event: ChatEvent) => emitChat(event)
+    }
+    ;(globalThis as typeof globalThis & { __igrisE2E?: typeof hooks }).__igrisE2E = hooks
+  }
 
   const context: AppContext = {
     version: app.getVersion(),

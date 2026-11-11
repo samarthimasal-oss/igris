@@ -1,6 +1,6 @@
 # Desktop Control Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax for tracking. The design spec is `docs/DESKTOP-CONTROL.md`.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Steps use checkbox (`- [x]`) syntax for tracking. The design spec is `docs/DESKTOP-CONTROL.md`.
 
 **Goal:** Add real, permissioned Windows desktop and browser control to IGRIS, integrated with the existing main process, tool registry, approvals, audit, and terminal UI.
 
@@ -43,13 +43,13 @@
 **Interfaces:**
 - Produces: `PermissionKey` includes `desktopControl` and `browserControl`; `ControlSessionState`, `ControlScope`, `ControlEvent`; `control.*` bridge methods.
 
-- [ ] Add `playwright-core` to dependencies.
-- [ ] Add permissions to types/defaults/metadata; default false.
-- [ ] Add control DTOs to shared types and IPC contract; add `IPC_CONTROL_EVENT`; HUD role allowlist.
-- [ ] Add preload `control` methods and `events.onControl`.
-- [ ] Raise `maxToolIterations` clamp to 60.
-- [ ] Tests: new permissions default false; old settings merge; clamp.
-- [ ] Typecheck and commit.
+- [x] Add `playwright-core` to dependencies.
+- [x] Add permissions to types/defaults/metadata; default false.
+- [x] Add control DTOs to shared types and IPC contract; add `IPC_CONTROL_EVENT`; HUD role allowlist.
+- [x] Add preload `control` methods and `events.onControl`.
+- [x] Raise `maxToolIterations` clamp to 60.
+- [x] Tests: new permissions default false; old settings merge; clamp.
+- [x] Typecheck and commit.
 
 ### Task 2: Control session service
 
@@ -60,9 +60,9 @@
 **Interfaces:**
 - Produces: `create(taskId, goal, scope)`, `getForTask(taskId)`, `assertActive(taskId, scope)`, `pause/resume/stop/endTask/endAll`, `recordAction`, `setCurrentAction`, `activeState()`, `onChange(listener)`.
 
-- [ ] Write failing tests for create, scope, expiry (fake clock), pause, stop, task end, budget, action record, no session.
-- [ ] Implement with 20 min TTL, 120 action budget, 30 turn cap.
-- [ ] Run tests; commit.
+- [x] Write failing tests for create, scope, expiry (fake clock), pause, stop, task end, budget, action record, no session.
+- [x] Implement with 20 min TTL, 120 action budget, 30 turn cap.
+- [x] Run tests; commit.
 
 ### Task 3: PowerShell operator host
 
@@ -76,11 +76,11 @@
 - Produces: `OperatorClient.start/stop/request/ping/state/listWindows/focusWindow/showWindow/closeWindow/moveMouse/click/drag/scroll/typeText/keyEvent/releaseAll/screenshot/getElements/invokeElement/setElementValue/focusElement`.
 - Protocol: newline JSON `{id,cmd,args}` → `{id,ok,data|error}`; startup `{ready:true,version:1}`.
 
-- [ ] Implement C# helper + PS loop; test standalone with `state`, `listWindows`, `screenshot`, `typeText` in a scratch WinForms window.
-- [ ] Implement `OperatorClient` with handshake, timeouts, stderr logging, crash restart, release-all.
-- [ ] Unit-test framing/timeout/crash with a fake Node script.
-- [ ] Real smoke test: host starts, helper compiles, screenshot, window enumeration, UIA, type/read in scratch app.
-- [ ] Commit.
+- [x] Implement C# helper + PS loop; test standalone with `state`, `listWindows`, `screenshot`, `typeText` in a scratch WinForms window.
+- [x] Implement `OperatorClient` with handshake, timeouts, stderr logging, crash restart, release-all.
+- [x] Unit-test framing/timeout/crash with a fake Node script.
+- [x] Real smoke test: host starts, helper compiles, screenshot, window enumeration, UIA, type/read in scratch app.
+- [x] Commit.
 
 ### Task 4: Desktop service and policy
 
@@ -91,10 +91,10 @@
 **Interfaces:**
 - Produces: `DesktopService.run(action, args, ctx) -> ToolOutcome`; `policy.parseKeyChord`, `policy.windowBlockReason`, `policy.validateBrowserUrl`, `policy.isSensitiveText`.
 
-- [ ] Tests for key chords, blocklists, URL schemes, sensitive text, window resolution, password refusal, self/elevated/credential blocks, close/shell/first-launch confirmations.
-- [ ] Implement state/list/screenshot/elements/focus/launch/click/move/drag/scroll/type/key/window/invoke/set_value/wait.
-- [ ] Screenshot downscale/JPEG via `nativeImage`; save PNG under `userData/screenshots/<session>/`.
-- [ ] Commit.
+- [x] Tests for key chords, blocklists, URL schemes, sensitive text, window resolution, password refusal, self/elevated/credential blocks, close/shell/first-launch confirmations.
+- [x] Implement state/list/screenshot/elements/focus/launch/click/move/drag/scroll/type/key/window/invoke/set_value/wait.
+- [x] Screenshot downscale/JPEG via `nativeImage`; save PNG under `userData/screenshots/<session>/`.
+- [x] Commit.
 
 ### Task 5: Browser service
 
@@ -105,10 +105,10 @@
 **Interfaces:**
 - Produces: `BrowserService.run(action, args, ctx)`; `start/stop`; managed profile `<userData>/browser/igris-profile`.
 
-- [ ] Tests: URL validation, password redaction, ref formatting, stale ref error, download block, navigation with local HTTP server.
-- [ ] Implement Edge/Chrome launch, snapshot refs, all actions, crash restart, tab management.
-- [ ] Real integration: local page → snapshot → click → type → verify; password field blocked.
-- [ ] Commit.
+- [x] Tests: URL validation, password redaction, ref formatting, stale ref error, download block, navigation with local HTTP server.
+- [x] Implement Edge/Chrome launch, snapshot refs, all actions, crash restart, tab management.
+- [x] Real integration: local page → snapshot → click → type → verify; password field blocked.
+- [x] Commit.
 
 ### Task 6: Tools and runtime
 
@@ -120,11 +120,11 @@
 **Interfaces:**
 - Produces: `request_computer_control`, `desktop`, `browser`; `ToolContext.confirm`; `forceConfirmation`.
 
-- [ ] Runtime tests: forced approval, sub-action confirmation, denial.
-- [ ] Define schemas with `action` discriminated unions; keep tool count at 3.
-- [ ] `request_computer_control` checks scope permissions, creates session, returns stop hotkey.
-- [ ] `desktop`/`browser` assert session scope; pass confirm callback.
-- [ ] Commit.
+- [x] Runtime tests: forced approval, sub-action confirmation, denial.
+- [x] Define schemas with `action` discriminated unions; keep tool count at 3.
+- [x] `request_computer_control` checks scope permissions, creates session, returns stop hotkey.
+- [x] `desktop`/`browser` assert session scope; pass confirm callback.
+- [x] Commit.
 
 ### Task 7: Chat engine integration
 
@@ -135,10 +135,10 @@
 **Interfaces:**
 - Produces: effective control turn limit 30; image pruning to 2; session end on run finish; updated system prompt.
 
-- [ ] Tests for effective limit, image pruning, session end.
-- [ ] Update system prompt: control instructions, remove “no mouse/keyboard”.
-- [ ] End session in `finally`; prune images before each turn.
-- [ ] Commit.
+- [x] Tests for effective limit, image pruning, session end.
+- [x] Update system prompt: control instructions, remove “no mouse/keyboard”.
+- [x] End session in `finally`; prune images before each turn.
+- [x] Commit.
 
 ### Task 8: HUD and IPC
 
@@ -151,11 +151,11 @@
 **Interfaces:**
 - Produces: HUD window, `control.state/pause/resume/stop`, global `Ctrl+Alt+Shift+X` stop, broadcast events.
 
-- [ ] HUD window 360×92, always-on-top, bottom-right, role `hud`.
-- [ ] HUD UI: goal, action, count/budget, pause/resume/stop.
-- [ ] Wire session events to HUD + main; stop cancels task, releases input, ends session.
-- [ ] E2E: no HUD without session; HUD shows/hides; buttons call bridge.
-- [ ] Commit.
+- [x] HUD window 360×92, always-on-top, bottom-right, role `hud`.
+- [x] HUD UI: goal, action, count/budget, pause/resume/stop.
+- [x] Wire session events to HUD + main; stop cancels task, releases input, ends session.
+- [x] E2E: no HUD without session; HUD shows/hides; buttons call bridge.
+- [x] Commit.
 
 ### Task 9: Renderer integration
 
@@ -168,12 +168,12 @@
 **Interfaces:**
 - Produces: control badge/strip, control approval variant, permission toggles, capability groups.
 
-- [ ] Store control state + actions; subscribe to control events.
-- [ ] Home control strip with Pause/Stop and live action.
-- [ ] Approval modal variant for control requests.
-- [ ] Settings toggles/warnings; Tools capability groups.
-- [ ] E2E: defaults off, toggle persists, approval copy, HUD.
-- [ ] Commit.
+- [x] Store control state + actions; subscribe to control events.
+- [x] Home control strip with Pause/Stop and live action.
+- [x] Approval modal variant for control requests.
+- [x] Settings toggles/warnings; Tools capability groups.
+- [x] E2E: defaults off, toggle persists, approval copy, HUD.
+- [x] Commit.
 
 ### Task 10: Docs, integration suite, packaging
 
@@ -185,8 +185,8 @@
 **Interfaces:**
 - Produces: real Windows integration suite and final installer.
 
-- [ ] Docs: permissions, sessions, hard blocks, browser profile, UIPI limits, troubleshooting.
-- [ ] Integration suite: host, screenshot, windows, UIA, mouse/keyboard in scratch app, Edge profile, navigation, snapshot, session expiry, budgets, audit.
-- [ ] Run `npm run typecheck`, `npm test`, `npm run test:e2e`, `npm run test:control`, `npm run test:packaged`, `npm run dist`.
-- [ ] Manual acceptance: Notepad, browser, stop, denial, password/elevated blocks.
-- [ ] Commit, push, report installer hash.
+- [x] Docs: permissions, sessions, hard blocks, browser profile, UIPI limits, troubleshooting.
+- [x] Integration suite: host, screenshot, windows, UIA, mouse/keyboard in scratch app, Edge profile, navigation, snapshot, session expiry, budgets, audit.
+- [x] Run `npm run typecheck`, `npm test`, `npm run test:e2e`, `npm run test:control`, `npm run test:packaged`, `npm run dist`.
+- [x] Manual acceptance: Notepad, browser, stop, denial, password/elevated blocks.
+- [x] Commit, push, report installer hash.

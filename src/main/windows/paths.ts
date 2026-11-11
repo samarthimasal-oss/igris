@@ -22,3 +22,9 @@ export function miniPageUrl(): string {
   if (devUrl) return `${devUrl.replace(/\/+$/, '')}/mini.html`
   return pathToFileURL(join(__dirname, '../renderer/mini.html')).toString()
 }
+
+export function hudPageUrl(): string {
+  const devUrl = process.env.ELECTRON_RENDERER_URL
+  if (devUrl) return `${devUrl.replace(/\/+$/, '')}/hud.html`
+  return pathToFileURL(join(__dirname, '../renderer/hud.html')).toString()
+}

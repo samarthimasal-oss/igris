@@ -7590,6 +7590,20 @@ svg {
   user-select: text;
 }
 
+.confirmation-rules {
+  margin: 0;
+  padding: 10px 11px 10px 27px;
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.confirmation-rules li::marker {
+  color: var(--warning);
+}
+
 .confirmation-footnote {
   margin-top: 13px;
   color: var(--dim);

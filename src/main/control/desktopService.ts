@@ -24,6 +24,8 @@ import type {
 
 export interface OperatorLike {
   request<T>(cmd: string, args?: Record<string, unknown>, timeoutMs?: number): Promise<T>
+  /** Optional so tests can supply a request-only fake. */
+  isReady?(): boolean
 }
 
 export interface DesktopConfirmRequest {
@@ -148,6 +150,7 @@ export class DesktopService {
 
   /** Best-effort release of every key and mouse button the operator may hold. */
   async releaseAll(): Promise<void> {
+    if (this.deps.operator.isReady && !this.deps.operator.isReady()) return
     try {
       await this.deps.operator.request('releaseAll', {}, 2000)
     } catch {
