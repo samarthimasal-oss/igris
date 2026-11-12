@@ -102,6 +102,6 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Con
 - **Initial release commit:** `c315cd7a09641a33d0337214c607a12f9b32e447`
 - **Remote:** `https://github.com/samarthimasal-oss/igris`
 - **Desktop-control branch:** `feature/desktop-control`
-- **Installer SHA-256:** `0CAB8F98F81684A6CB7645F4E402A653163D5393AB97A408DEF1354047E8B868`
+- **Installer SHA-256:** `6AEEC894B758346DA4046FA5B5EFC407296E873526CC661650959F2F00BF42FA`
 
 The NSIS installer is built locally but intentionally not committed. It is unsigned and is not attached to a GitHub release.
