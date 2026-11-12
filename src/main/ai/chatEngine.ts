@@ -713,6 +713,12 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
           'chat',
           `Run ${active.runId} failed: ${failure.code} ${failure.userMessage}`
         )
+        if (failure.message && failure.message !== failure.userMessage) {
+          this.deps.logger.warn(
+            'chat',
+            `Failure detail: ${redactAndTruncate(failure.message, 2000)}`
+          )
+        }
       }
     } finally {
       active.finished = true

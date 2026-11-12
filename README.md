@@ -221,7 +221,7 @@ Use **Settings → Privacy & data** to export data, clear conversation and memor
 ### Verification status
 
 - `npm run typecheck` — passing
-- `npm test` - **137 passing, 1 skipped** across 18 files
+- `npm test` - **141 passing, 1 skipped** across 19 files
 - `npm run test:e2e` - **9 Electron smoke tests passing**
 - `npm run test:packaged` — packaged `IGRIS.exe` boots, bridges, routes, and loads the operator asset and HUD
 - `npm run pack` — passing (`release/win-unpacked/IGRIS.exe`)

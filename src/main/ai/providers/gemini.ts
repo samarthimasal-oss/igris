@@ -90,6 +90,45 @@ function keyParam(config: ProviderRuntimeConfig): string {
   return `key=${encodeURIComponent(config.apiKey)}`
 }
 
+/**
+ * Gemini accepts an OpenAPI-style subset of JSON Schema. Zod emits draft-7
+ * keywords it does not understand (for example `exclusiveMinimum`), and a
+ * single unknown keyword rejects the whole request with HTTP 400. Translate
+ * the ones we can express and drop the rest; Zod still validates arguments
+ * at runtime, so the model-facing schema is a hint, not the enforcement.
+ */
+export function sanitizeGeminiSchema(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeGeminiSchema)
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(value)) {
+      if (
+        key === '$schema' ||
+        key === 'additionalProperties' ||
+        key === 'default' ||
+        key === 'examples'
+      ) {
+        continue
+      }
+      if (key === 'exclusiveMinimum') {
+        if (typeof entry === 'number') out.minimum = entry
+        continue
+      }
+      if (key === 'exclusiveMaximum') {
+        if (typeof entry === 'number') out.maximum = entry
+        continue
+      }
+      if (key === 'const') {
+        out.enum = [entry]
+        continue
+      }
+      out[key] = sanitizeGeminiSchema(entry)
+    }
+    return out
+  }
+  return value
+}
+
 function extractParts(chunk: GeminiChunk): {
   text: string
   calls: Array<{ name: string; args: Record<string, unknown> }>
@@ -175,7 +214,7 @@ export class GeminiAdapter implements ProviderAdapter {
           functionDeclarations: request.tools.map((tool) => ({
             name: tool.name,
             description: tool.description,
-            parameters: tool.parameters
+            parameters: sanitizeGeminiSchema(tool.parameters) as Record<string, unknown>
           }))
         }
       ]

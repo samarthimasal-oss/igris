@@ -27,7 +27,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **137 passing**, 1 skipped, 18 files |
+| `npm test` | **141 passing**, 1 skipped, 19 files |
 | `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
@@ -154,6 +154,13 @@ Live provider calls are intentionally not automated because no API key is presen
 - context keeps at most two screenshots;
 - session ends in `finally`;
 - system prompt includes control and stop rules.
+
+### `tests/unit/geminiSchema.test.ts`
+
+- numeric `exclusiveMinimum`/`exclusiveMaximum` become inclusive `minimum`/`maximum`;
+- unsupported draft-7 keywords are dropped while the rest of the schema survives;
+- every provider tool schema is free of keywords Gemini rejects;
+- the positive window `handle` bound no longer rejects the request.
 
 ## Integration tests
 

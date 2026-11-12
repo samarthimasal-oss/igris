@@ -26,7 +26,7 @@
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
 | Windows 10/11 packaging | Complete | NSIS installer built at `release/IGRIS-1.0.0-x64-Setup.exe` |
-| Tests | Complete | 137 unit/integration (1 skipped) + 9 Electron E2E passing |
+| Tests | Complete | 141 unit/integration (1 skipped) + 9 Electron E2E passing |
 | Documentation | Complete | README + architecture, security, testing, status docs |
 | Secrets excluded from git | Complete | `.gitignore`; no keys or `.env` files in the tree |
 
@@ -34,7 +34,7 @@
 
 ```text
 npm run typecheck   PASS
-npm test            18 files, 137 passed, 1 skipped
+npm test            19 files, 141 passed, 1 skipped
 npm run test:e2e    9 tests PASS
 npm run test:packaged PASS (packaged IGRIS.exe, operator asset, HUD)
 npm run pack        PASS -> release/win-unpacked/IGRIS.exe
@@ -47,7 +47,7 @@ OpenCode Console model discovery: PASS against the live gateway catalogue; free-
 
 OpenRouter free-model discovery: PASS against the live catalogue (16 free models at the time of verification). Paid model IDs are rejected by the provider service guard.
 
-Gemini live verification: PASS — `gemini-3.6-flash` streamed “IGRIS online” through the IGRIS chat engine; 46 models were discovered. The key was stored only as a DPAPI-encrypted blob.
+Gemini live verification: PASS — `gemini-3.6-flash` streamed “IGRIS online” through the IGRIS chat engine; 46 models were discovered. The key was stored only as a DPAPI-encrypted blob. A later regression (Gemini HTTP 400 on the draft-7 `exclusiveMinimum` keyword emitted by the desktop tool) is fixed by sanitizing function schemas at the Gemini adapter boundary; the fix is covered by `tests/unit/geminiSchema.test.ts` and was verified live with both a chat reply and an `open yt` tool run.
 
 Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Conversation view with the 3D core renders; minimized robot launcher works. Three.js emits a harmless `THREE.Clock` deprecation warning from a dependency.
 
