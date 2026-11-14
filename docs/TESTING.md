@@ -27,7 +27,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **147 passing**, 1 skipped, 20 files |
+| `npm test` | **152 passing**, 1 skipped, 21 files |
 | `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
@@ -156,6 +156,14 @@ Live provider calls are intentionally not automated because no API key is presen
 - context keeps at most two screenshots;
 - session ends in `finally`;
 - system prompt includes control and stop rules.
+
+### `tests/unit/chatRetry.test.ts`
+
+- a transient failure before any output is retried and succeeds;
+- a failure after output was delivered is not retried (no duplicated text);
+- non-retryable `QUOTA` failures fail on the first attempt;
+- retry gives up after the third attempt;
+- backoff waits 2s then 6s between attempts.
 
 ### `tests/unit/geminiSchema.test.ts`
 

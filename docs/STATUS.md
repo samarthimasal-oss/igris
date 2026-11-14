@@ -26,7 +26,7 @@
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
 | Windows 10/11 packaging | Complete | NSIS installer built at `release/IGRIS-1.0.0-x64-Setup.exe` |
-| Tests | Complete | 147 unit/integration (1 skipped) + 9 Electron E2E passing |
+| Tests | Complete | 152 unit/integration (1 skipped) + 9 Electron E2E passing |
 | Documentation | Complete | README + architecture, security, testing, status docs |
 | Secrets excluded from git | Complete | `.gitignore`; no keys or `.env` files in the tree |
 
@@ -34,7 +34,7 @@
 
 ```text
 npm run typecheck   PASS
-npm test            20 files, 147 passed, 1 skipped
+npm test            21 files, 152 passed, 1 skipped
 npm run test:e2e    9 tests PASS
 npm run test:packaged PASS (packaged IGRIS.exe, operator asset, HUD)
 npm run pack        PASS -> release/win-unpacked/IGRIS.exe
@@ -49,7 +49,9 @@ OpenRouter free-model discovery: PASS against the live catalogue (16 free models
 
 Gemini live verification: PASS — `gemini-3.6-flash` streamed “IGRIS online” through the IGRIS chat engine; 46 models were discovered. The key was stored only as a DPAPI-encrypted blob. A later regression (Gemini HTTP 400 on the draft-7 `exclusiveMinimum` keyword emitted by the desktop tool) is fixed by sanitizing function schemas at the Gemini adapter boundary; the fix is covered by `tests/unit/geminiSchema.test.ts` and was verified live with both a chat reply and an `open yt` tool run.
 
-A second live regression was found and fixed: Gemini 3 attaches an opaque `thoughtSignature` to each function-call part and rejects the next turn with HTTP 400 when it is not echoed back ("Function call is missing a thought_signature in functionCall parts"). IGRIS now carries the signature on `ToolCall` and the Gemini adapter echoes it on replay (`tests/unit/geminiThoughtSignature.test.ts`). A live control run after the fix progressed through `request_computer_control` and repeated `browser` actions with no 400s.
+A second live regression was found and fixed: Gemini 3 attaches an opaque `thoughtSignature` to each function-call part and rejects the next turn with HTTP 400 when it is not echoed back ("Function call is missing a thought_signature in functionCall parts"). IGRIS now carries the signature on `ToolCall` and the Gemini adapter echoes it on replay (`tests/unit/geminiThoughtSignature.test.ts`). A live control run after the fix progressed through `request_computer_control` and 13+ consecutive `browser` actions with no 400s.
+
+Transient provider failures (HTTP 503 high-demand, brief rate limits, network drops) are retried automatically within a turn — up to two extra attempts with 2s/6s backoff — but only when nothing was streamed yet, so delivered output is never duplicated, and only for retryable errors; exhausted daily quotas (`QUOTA`) and auth failures fail fast (`tests/unit/chatRetry.test.ts`).
 
 A live "open YouTube and play a song" run demonstrated the remaining hard ceiling: the Gemini free tier allows only **20 `gemini-3.6-flash` requests per day**, so multi-step control tasks exhaust the quota and later requests fail. Exhausted daily quotas now surface as a `QUOTA` error with model-switch/billing guidance and a reset estimate instead of a generic retryable rate limit. The browser-control layer itself was verified live without the model: clicking the first `watch?v=` result on YouTube starts playback (video advances, Pause control appears), so the managed browser, ref-based clicking, and media detection behave correctly once the model quota allows the loop to finish.
 
@@ -106,10 +108,11 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Con
 - [x] Rebuilt the installer with the final operator script and HUD; packaged smoke passes.
 - [x] Fixed the Gemini 3 `thoughtSignature` rejection that broke every turn after a tool call.
 - [x] Added daily-quota detection with reset guidance and media-aware browser keep-open behavior.
+- [x] Added automatic retry for transient provider failures within a turn.
 
 - **Initial release commit:** `c315cd7a09641a33d0337214c607a12f9b32e447`
 - **Remote:** `https://github.com/samarthimasal-oss/igris`
 - **Desktop-control branch:** `feature/desktop-control`
-- **Installer SHA-256:** `A559794A0457C44DDCFDD37A742171B9EB7205AA128C9BAEBFAD8C6CA384F0E3`
+- **Installer SHA-256:** `94EE8FBE458F76D9FF217814C02EF24D6D6E5760D0DA6216B7FCA2E3934B01B2`
 
 The NSIS installer is built locally but intentionally not committed. It is unsigned and is not attached to a GitHub release.
