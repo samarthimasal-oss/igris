@@ -327,10 +327,22 @@ async function boot(): Promise<void> {
     hud.update(state)
     if (!state) {
       globalShortcut.unregister(STOP_HOTKEY)
-      // The session ended, expired, or was stopped: release held input and
-      // close the managed browser so nothing keeps running in the background.
+      // Release held input. Keep the managed browser alive if it is playing
+      // media (music or video), so a completed "play this" task keeps playing.
+      // An explicit stop (HUD, hotkey, app quit) always closes it, and a new
+      // session that starts while this check runs keeps its browser.
+      const explicit = control.endedExplicitly()
       void desktopControlService.releaseAll()
-      void browserControlService.stop()
+      void (async () => {
+        if (!explicit) {
+          const playing = await browserControlService.hasPlayingMedia()
+          if (playing && !control.activeState()) {
+            appLogger.info('control', 'Keeping the managed browser open because media is playing.')
+            return
+          }
+        }
+        if (!control.activeState()) await browserControlService.stop()
+      })()
       return
     }
     try {

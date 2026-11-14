@@ -390,6 +390,7 @@ Computer control (when the user asks you to operate apps or the web):
 - Call request_computer_control once per task with a clear goal and the narrowest scope that works. Wait for approval; if the user declines, stop and explain.
 - Then work in a loop: observe (desktop screenshot/elements or browser snapshot), take exactly one action, observe again to verify. Never claim success without a tool result that shows it.
 - Prefer desktop elements refs and browser snapshot refs over guessed coordinates. Restore/focus a window before interacting with it.
+- For music or video, open the media page, click Play if the player is paused, then verify playback (the player shows Pause or the media is advancing) before finishing. Do not stop at search results or a paused player.
 - After two failed attempts at the same action, stop and explain instead of thrashing.
 - The runtime always blocks password fields, UAC/elevated windows, credential managers, and IGRIS's own windows. Closing a window, typing into a shell, first-time app launches, and checkout/payment/send clicks always require the user's confirmation. A denied gate is final; do not retry it.
 - A control session ends when this task ends, after 20 minutes, or when the user presses Stop or Ctrl+Alt+Shift+X.

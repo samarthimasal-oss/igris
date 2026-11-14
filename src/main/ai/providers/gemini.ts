@@ -14,7 +14,10 @@ import type {
 type GeminiPart =
   | { text: string }
   | { inlineData: { mimeType: string; data: string } }
-  | { functionCall: { name: string; args: Record<string, unknown> } }
+  | {
+      functionCall: { name: string; args: Record<string, unknown> }
+      thoughtSignature?: string
+    }
   | { functionResponse: { name: string; response: Record<string, unknown> } }
 
 interface GeminiContent {
@@ -71,7 +74,11 @@ function mapContents(messages: ModelMessage[]): GeminiContent[] {
       const parts: GeminiPart[] = []
       if (message.content) parts.push({ text: message.content })
       for (const call of message.toolCalls ?? []) {
-        parts.push({ functionCall: { name: call.name, args: call.arguments ?? {} } })
+        const part: GeminiPart = {
+          functionCall: { name: call.name, args: call.arguments ?? {} }
+        }
+        if (call.thoughtSignature) part.thoughtSignature = call.thoughtSignature
+        parts.push(part)
       }
       push('model', parts)
       continue
@@ -131,17 +138,23 @@ export function sanitizeGeminiSchema(value: unknown): unknown {
 
 function extractParts(chunk: GeminiChunk): {
   text: string
-  calls: Array<{ name: string; args: Record<string, unknown> }>
+  calls: Array<{ name: string; args: Record<string, unknown>; thoughtSignature?: string }>
 } {
   let text = ''
-  const calls: Array<{ name: string; args: Record<string, unknown> }> = []
+  const calls: Array<{
+    name: string
+    args: Record<string, unknown>
+    thoughtSignature?: string
+  }> = []
   for (const candidate of chunk.candidates ?? []) {
     for (const part of candidate.content?.parts ?? []) {
       if ('text' in part && typeof part.text === 'string') text += part.text
       if ('functionCall' in part && part.functionCall?.name) {
         calls.push({
           name: part.functionCall.name,
-          args: part.functionCall.args ?? {}
+          args: part.functionCall.args ?? {},
+          thoughtSignature:
+            typeof part.thoughtSignature === 'string' ? part.thoughtSignature : undefined
         })
       }
     }
@@ -243,7 +256,8 @@ export class GeminiAdapter implements ProviderAdapter {
         const toolCall: ToolCall = {
           id: `gemini_call_${Date.now()}_${callIndex}`,
           name: call.name,
-          arguments: call.args
+          arguments: call.args,
+          thoughtSignature: call.thoughtSignature
         }
         yield { type: 'tool_call', call: toolCall }
       }

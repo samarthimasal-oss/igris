@@ -27,7 +27,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **141 passing**, 1 skipped, 19 files |
+| `npm test` | **147 passing**, 1 skipped, 20 files |
 | `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
@@ -96,7 +96,8 @@ Live provider calls are intentionally not automated because no API key is presen
 - internal/user message separation;
 - abort-to-cancellation mapping;
 - serialization without internal leakage;
-- HTTP status mapping (401/403/404/429/402/5xx).
+- HTTP status mapping (401/403/404/429/402/5xx);
+- daily-quota 429s map to `QUOTA` with reset guidance, not an immediately retryable rate limit.
 
 ### `tests/unit/taskState.test.ts`
 
@@ -112,7 +113,8 @@ Live provider calls are intentionally not automated because no API key is presen
 - scope enforcement for desktop, browser, and both;
 - 20-minute expiry with a fake clock;
 - pause/resume, stop, and task end;
-- action budget and no-session rejection.
+- action budget and no-session rejection;
+- explicit stops (`stop`/`endAll`) are distinguishable from a task ending on its own and from expiry.
 
 ### `tests/unit/controlPolicy.test.ts`
 
@@ -161,6 +163,12 @@ Live provider calls are intentionally not automated because no API key is presen
 - unsupported draft-7 keywords are dropped while the rest of the schema survives;
 - every provider tool schema is free of keywords Gemini rejects;
 - the positive window `handle` bound no longer rejects the request.
+
+### `tests/unit/geminiThoughtSignature.test.ts`
+
+- the `thoughtSignature` attached to a streamed function-call part is captured on the `ToolCall`;
+- replaying an assistant tool call to Gemini echoes the signature on the `functionCall` part;
+- calls that never had a signature do not gain the field.
 
 ## Integration tests
 

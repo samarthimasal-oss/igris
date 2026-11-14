@@ -117,4 +117,30 @@ describe('ControlSessionService', () => {
     expect(service.stateForTask('task-1')).toBeNull()
     expect(service.stateForTask('task-2')).toBeNull()
   })
+
+  it('distinguishes explicit stops from a task ending on its own', () => {
+    const { service, advance } = makeService()
+    service.create('task-1', 'Play a song', 'browser')
+
+    expect(service.endedExplicitly()).toBe(false)
+    service.endTask('task-1', 'completed')
+    expect(service.endedExplicitly()).toBe(false)
+
+    service.create('task-2', 'Play a song', 'browser')
+    service.stop('task-2', 'user')
+    expect(service.endedExplicitly()).toBe(true)
+
+    service.create('task-3', 'Play a song', 'browser')
+    expect(service.endedExplicitly()).toBe(false)
+    advance(20 * 60_000 + 1)
+    expect(service.stateForTask('task-3')).toBeNull()
+    expect(service.endedExplicitly()).toBe(false)
+  })
+
+  it('treats endAll as an explicit stop', () => {
+    const { service } = makeService()
+    service.create('task-1', 'Play a song', 'browser')
+    service.endAll('stop hotkey')
+    expect(service.endedExplicitly()).toBe(true)
+  })
 })

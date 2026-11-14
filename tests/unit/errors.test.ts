@@ -71,4 +71,20 @@ describe('httpStatusToError', () => {
     expect(httpStatusToError(503, '').retryable).toBe(true)
     expect(httpStatusToError(401, '').retryable).toBe(false)
   })
+
+  it('reports an exhausted daily quota without promising an immediate retry', () => {
+    const error = httpStatusToError(
+      429,
+      JSON.stringify({
+        error: {
+          message:
+            'You exceeded your current quota. Generate content requests per day limit exceeded on Free Tier. Please retry in 15h54m21.236401522s.'
+        }
+      })
+    )
+    expect(error.code).toBe('QUOTA')
+    expect(error.retryable).toBe(false)
+    expect(error.userMessage).toContain('daily request quota')
+    expect(error.userMessage).toContain('15h 54m')
+  })
 })

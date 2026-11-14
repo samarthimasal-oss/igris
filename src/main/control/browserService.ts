@@ -366,7 +366,7 @@ export class BrowserService {
           channel,
           headless: false,
           viewport: null,
-          args: ['--start-maximized'],
+          args: ['--start-maximized', '--autoplay-policy=no-user-gesture-required'],
           acceptDownloads: false
         })
         context.setDefaultTimeout(15_000)
@@ -773,6 +773,28 @@ export class BrowserService {
         `Managed browser did not close cleanly: ${error instanceof Error ? error.message : String(error)}`
       )
     }
+  }
+
+  /** True when any tab is actively playing audio or video. */
+  async hasPlayingMedia(): Promise<boolean> {
+    const context = this.context
+    if (!context) return false
+    for (const page of context.pages()) {
+      if (page.isClosed()) continue
+      try {
+        const playing = await page.evaluate(() => {
+          const media = Array.from(document.querySelectorAll('video, audio'))
+          return media.some((element) => {
+            const player = element as HTMLMediaElement
+            return !player.paused && !player.ended && player.readyState >= 2
+          })
+        })
+        if (playing) return true
+      } catch {
+        // A page can navigate while it is being inspected.
+      }
+    }
+    return false
   }
 }
 

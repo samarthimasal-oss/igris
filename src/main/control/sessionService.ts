@@ -51,6 +51,12 @@ export class ControlSessionService {
   private readonly sessions = new Map<string, ControlSession>()
   private readonly listeners = new Set<ControlStateListener>()
   private readonly limits: Required<ControlSessionLimits>
+  /**
+   * True when the most recent teardown came from an explicit stop (user, HUD,
+   * hotkey, app quit) rather than the task ending on its own. The app uses this
+   * to decide whether it may keep the managed browser open for playing media.
+   */
+  private lastEndWasExplicit = false
 
   constructor(
     private readonly now: () => number = Date.now,
@@ -66,6 +72,7 @@ export class ControlSessionService {
       return this.toState(existing)
     }
     if (existing) this.sessions.delete(taskId)
+    this.lastEndWasExplicit = false
 
     const startedAt = this.now()
     const session: ControlSession = {
@@ -112,6 +119,11 @@ export class ControlSessionService {
   activeState(): ControlSessionState | null {
     const states = this.activeStates()
     return states.length ? states[0]! : null
+  }
+
+  /** Whether the most recent control teardown was an explicit stop. */
+  endedExplicitly(): boolean {
+    return this.lastEndWasExplicit
   }
 
   activeForTask(taskId: string): boolean {
@@ -228,6 +240,7 @@ export class ControlSessionService {
     session.currentAction = null
     session.endedAt = this.now()
     session.endReason = reason
+    this.lastEndWasExplicit = true
     this.emit(null)
     return true
   }
@@ -239,12 +252,14 @@ export class ControlSessionService {
     if (!session.stopped && session.endedAt === null) {
       session.endedAt = this.now()
       session.endReason = reason
+      this.lastEndWasExplicit = false
       this.emit(null)
     }
     return true
   }
 
   endAll(reason = 'app quit'): void {
+    this.lastEndWasExplicit = true
     for (const session of [...this.sessions.values()]) {
       if (session.stopped || session.endedAt !== null) {
         this.sessions.delete(session.taskId)
@@ -289,6 +304,7 @@ export class ControlSessionService {
     session.endedAt = this.now()
     session.endReason = reason
     session.currentAction = null
+    this.lastEndWasExplicit = false
     this.emit(null)
   }
 
