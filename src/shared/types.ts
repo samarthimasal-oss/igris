@@ -50,6 +50,7 @@ export interface AiSettings {
   streaming: boolean
   systemInstructions: string
   confirmSensitiveActions: boolean
+  autoFallback: boolean
 }
 
 export interface Settings {

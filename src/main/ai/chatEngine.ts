@@ -25,8 +25,24 @@ import type { ToolRuntime } from '../tools/toolRuntime'
 import type { createToolRegistry } from '../tools/registry'
 import type { ControlSessionService } from '../control/sessionService'
 import type { ModelMessage, ModelTool, ProviderStreamEvent } from '../ai/types'
+import type { ErrorCode } from '../security/errors'
 
 type ToolRegistry = ReturnType<typeof createToolRegistry>
+
+/** Provider failures that justify switching to a fallback provider. */
+const FALLBACK_CODES: ReadonlySet<ErrorCode> = new Set([
+  'AUTH',
+  'RATE_LIMIT',
+  'QUOTA',
+  'NETWORK',
+  'TIMEOUT',
+  'PROVIDER'
+])
+
+/** Marks a failed model turn that already delivered output to the user. */
+interface StreamFailureMarker {
+  delivered?: boolean
+}
 
 export interface ChatDependencies {
   conversations: ConversationRepository
@@ -485,8 +501,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
         this.emit({ type: 'status', runId: active.runId, status: active.provider.runtime.supportsTools ? 'thinking' : 'thinking' })
 
         pruneContextImages(modelMessages)
-        const turn = await this.streamTurn(active, {
-          model: active.provider.model,
+        const turn = await this.streamTurnWithFallback(active, {
           sessionId: active.conversationId,
           system,
           messages: modelMessages,
@@ -816,6 +831,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
           throw new AppError('TIMEOUT', 'The provider did not respond within 3 minutes.')
         }
         const appError = error instanceof AppError ? error : null
+        if (delivered) (error as StreamFailureMarker).delivered = true
         // Retry only transient failures that produced no output; a mid-stream
         // retry would duplicate text already delivered.
         if (
@@ -841,6 +857,61 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
 
   private retryDelay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  /**
+   * Runs one model turn, switching to the next configured provider with a
+   * stored key when the primary keeps failing and nothing was delivered yet.
+   */
+  private async streamTurnWithFallback(
+    active: ActiveRun,
+    request: {
+      sessionId?: string
+      system: string
+      messages: ModelMessage[]
+      tools: ModelTool[]
+      temperature: number
+      maxOutputTokens: number
+      streaming: boolean
+    }
+  ): Promise<TurnResult> {
+    const original = active.provider
+    try {
+      return await this.streamTurn(active, { ...request, model: active.provider.model })
+    } catch (error) {
+      const failure = error instanceof AppError ? error : null
+      if (
+        !failure ||
+        (error as StreamFailureMarker).delivered === true ||
+        !FALLBACK_CODES.has(failure.code) ||
+        !this.deps.settings.get().ai.autoFallback ||
+        active.controller.signal.aborted
+      ) {
+        throw error
+      }
+      for (const candidate of this.deps.providers.fallbackChain(original.provider.id)) {
+        active.provider = candidate
+        try {
+          this.deps.logger.warn(
+            'chat',
+            `${original.provider.name} failed (${failure.code}); switching to ${candidate.provider.name}/${candidate.model}.`
+          )
+          this.emit({
+            type: 'status',
+            runId: active.runId,
+            status: 'working',
+            detail: `Switching to ${candidate.provider.name}`
+          })
+          return await this.streamTurn(active, { ...request, model: active.provider.model })
+        } catch (next) {
+          const nextFailure = next instanceof AppError ? next : null
+          if (!nextFailure || (next as StreamFailureMarker).delivered) throw next
+          if (!FALLBACK_CODES.has(nextFailure.code)) throw next
+        }
+      }
+      active.provider = original
+      throw error
+    }
   }
 
   private awaitConfirmation(

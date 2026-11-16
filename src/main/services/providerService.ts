@@ -213,6 +213,28 @@ export class ProviderService {
     return this.toDto(this.repo.get(id) as ProviderRow)
   }
 
+  /**
+   * Ordered providers that can take over when the primary fails: the default
+   * (or the given primary) first, then every other provider that has a stored
+   * key and a model, in configuration order.
+   */
+  fallbackChain(primaryId?: string): ResolvedProvider[] {
+    const all = this.repo.list()
+    const ordered = primaryId
+      ? [...all.filter((provider) => provider.id === primaryId), ...all.filter((provider) => provider.id !== primaryId)]
+      : [...all.filter((provider) => provider.isDefault), ...all.filter((provider) => !provider.isDefault)]
+    const chain: ResolvedProvider[] = []
+    for (const provider of ordered) {
+      if (chain.some((entry) => entry.provider.id === provider.id)) continue
+      try {
+        chain.push(this.resolve(provider.id))
+      } catch {
+        // Providers without a stored key or model are not usable fallbacks.
+      }
+    }
+    return chain
+  }
+
   private resolveDraft(draft: ProviderDraft): {
     provider: ProviderRow
     apiKey: string | null

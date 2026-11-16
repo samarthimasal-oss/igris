@@ -38,7 +38,8 @@ export const DEFAULT_SETTINGS: Settings = {
     temperature: 0.7,
     streaming: true,
     systemInstructions: '',
-    confirmSensitiveActions: true
+    confirmSensitiveActions: true,
+    autoFallback: true
   },
   onboardingComplete: false
 }

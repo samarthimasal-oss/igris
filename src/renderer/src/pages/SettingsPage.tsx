@@ -670,6 +670,12 @@ export function SettingsPage() {
 
             <div className="settings-toggle-list">
               <Toggle
+                checked={settings.ai.autoFallback}
+                onChange={(value) => void apply({ ai: { autoFallback: value } })}
+                label="Automatic provider fallback"
+                description="When the active provider keeps failing, retry the turn with your other configured providers."
+              />
+              <Toggle
                 checked={settings.ai.confirmSensitiveActions}
                 onChange={(value) => void apply({ ai: { confirmSensitiveActions: value } })}
                 label="Confirm sensitive actions"

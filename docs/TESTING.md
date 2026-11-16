@@ -27,7 +27,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **152 passing**, 1 skipped, 21 files |
+| `npm test` | **157 passing**, 1 skipped, 22 files |
 | `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
@@ -164,6 +164,14 @@ Live provider calls are intentionally not automated because no API key is presen
 - non-retryable `QUOTA` failures fail on the first attempt;
 - retry gives up after the third attempt;
 - backoff waits 2s then 6s between attempts.
+
+### `tests/unit/chatFallback.test.ts`
+
+- a failing primary provider switches the turn to the next configured provider, with a "Switching to" status event;
+- a failure after output was delivered is not retried on another provider (no duplicated text);
+- non-provider failures (e.g. `VALIDATION`) do not trigger a switch;
+- the switch is skipped when the `ai.autoFallback` setting is off;
+- when every candidate fails, the original primary error is rethrown and the original provider is restored.
 
 ### `tests/unit/geminiSchema.test.ts`
 
