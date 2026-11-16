@@ -50,6 +50,7 @@ import {
   Toggle
 } from '../components/ui'
 import { errorMessage } from '../lib/errors'
+import { speechVoices } from '@shared/speech'
 import { formatBytes, fullTime, plural, relativeTime } from '../lib/format'
 import clsx from 'clsx'
 
@@ -119,6 +120,14 @@ export function SettingsPage() {
   const [clearLogsOpen, setClearLogsOpen] = useState(false)
   const [clearingLogs, setClearingLogs] = useState(false)
   const [exportingDiagnostics, setExportingDiagnostics] = useState(false)
+  const [speechVoicesList, setSpeechVoicesList] = useState<SpeechSynthesisVoice[]>([])
+
+  useEffect(() => {
+    const update = (): void => setSpeechVoicesList(speechVoices())
+    update()
+    window.speechSynthesis?.addEventListener('voiceschanged', update)
+    return () => window.speechSynthesis?.removeEventListener('voiceschanged', update)
+  }, [])
 
   const saveTimer = useRef<number | null>(null)
 
@@ -776,7 +785,7 @@ export function SettingsPage() {
               </div>
               <div>
                 <h2>Voice</h2>
-                <p>Microphone transcription in the terminal and the conversation composer.</p>
+                <p>Microphone transcription and spoken replies.</p>
               </div>
               <Badge tone={voiceReady ? 'success' : 'warning'} dot>
                 {voiceReady ? 'ready' : 'setup required'}
@@ -818,6 +827,55 @@ export function SettingsPage() {
               Voice fails closed when the permission is off or the default provider is not Gemini.
               Audio is not stored after transcription.
             </p>
+
+            <div className="settings-toggle-list">
+              <Toggle
+                checked={settings.voice.ttsEnabled}
+                onChange={(value) => void apply({ voice: { ttsEnabled: value } })}
+                label="Speak replies aloud"
+                description="Reads assistant replies with Windows voices. Code blocks are skipped, and speech stops when you talk or press Stop."
+              />
+              <Toggle
+                checked={settings.voice.handsFree}
+                onChange={(value) => void apply({ voice: { handsFree: value } })}
+                label="Hands-free listening"
+                description="Keeps the microphone open between turns in a conversation and listens for your next command. Requires microphone access."
+              />
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-row-copy">
+                <strong>Voice</strong>
+                <p>Which Windows voice reads replies aloud.</p>
+              </div>
+              <Select
+                value={settings.voice.ttsVoice}
+                onChange={(event) => void apply({ voice: { ttsVoice: event.target.value } })}
+                disabled={speechVoicesList.length === 0}
+              >
+                <option value="">System default</option>
+                {speechVoicesList.map((voice) => (
+                  <option key={voice.name} value={voice.name}>
+                    {voice.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-row-copy">
+                <strong>Speaking rate</strong>
+                <p>How fast replies are spoken.</p>
+              </div>
+              <Slider
+                min={0.5}
+                max={2}
+                step={0.1}
+                value={settings.voice.ttsRate}
+                valueLabel={`${settings.voice.ttsRate.toFixed(1)}×`}
+                onChange={(value) => void apply({ voice: { ttsRate: value } })}
+              />
+            </div>
           </Card>
 
           <Card className="settings-card" id="settings-companion">

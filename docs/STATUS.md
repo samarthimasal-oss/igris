@@ -26,7 +26,7 @@
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
 | Windows 10/11 packaging | Complete | NSIS installer built at `release/IGRIS-1.0.0-x64-Setup.exe` |
-| Tests | Complete | 157 unit/integration (1 skipped) + 9 Electron E2E passing |
+| Tests | Complete | 167 unit/integration (1 skipped) + 9 Electron E2E passing |
 | Documentation | Complete | README + architecture, security, testing, status docs |
 | Secrets excluded from git | Complete | `.gitignore`; no keys or `.env` files in the tree |
 
@@ -34,7 +34,7 @@
 
 ```text
 npm run typecheck   PASS
-npm test            22 files, 157 passed, 1 skipped
+npm test            23 files, 167 passed, 1 skipped
 npm run test:e2e    9 tests PASS
 npm run test:packaged PASS (packaged IGRIS.exe, operator asset, HUD)
 npm run pack        PASS -> release/win-unpacked/IGRIS.exe
@@ -54,6 +54,10 @@ A second live regression was found and fixed: Gemini 3 attaches an opaque `thoug
 Transient provider failures (HTTP 503 high-demand, brief rate limits, network drops) are retried automatically within a turn — up to two extra attempts with 2s/6s backoff — but only when nothing was streamed yet, so delivered output is never duplicated, and only for retryable errors; exhausted daily quotas (`QUOTA`) and auth failures fail fast (`tests/unit/chatRetry.test.ts`).
 
 When retries are not enough — a provider is down, out of daily quota, or hanging until the turn timeout — the turn is retried on the next configured provider with a stored key and model. Fallback covers auth, rate-limit, quota, network, timeout, and provider errors, never runs after output was delivered, and can be turned off with the "Automatic provider fallback" setting (`tests/unit/chatFallback.test.ts`). Live use: a Gemini daily-quota exhaustion or the `gemini-3.6-flash` hang now reroutes the turn to another configured provider instead of failing the run.
+
+Voice output runs entirely in the renderer on Windows `speechSynthesis` voices (Microsoft David/Mark/Zira verified live, `speechSynthesis.speaking` confirmed). Replies are reduced to speakable prose — code blocks, tables, and markdown syntax are stripped (`tests/unit/speech.test.ts`) — and speech is interrupted when you talk, send, or press Stop. Hands-free mode (Settings → Voice) keeps the microphone open between turns; a voice-activity gate skips recordings that never exceeded a speech-level RMS threshold, so silent recordings are not sent for transcription. Live probe: the audio graph runs without a user gesture, silence measures ~0.00005 RMS and audible bursts 0.012–0.06 against the 0.012 gate.
+
+Wake word ("Hey IGRIS") is intentionally deferred: the Chromium SpeechRecognition API in this Electron build fails with `network` (no Google speech backend), per-window Gemini transcription would burn the free daily quota, and a local engine (e.g. Porcupine) requires a vendor AccessKey. Push-to-talk plus optional hands-free mode is the supported voice path; revisit wake word if a local engine is acceptable later.
 
 A live "open YouTube and play a song" run demonstrated the remaining hard ceiling: the Gemini free tier allows only **20 `gemini-3.6-flash` requests per day**, so multi-step control tasks exhaust the quota and later requests fail. Exhausted daily quotas now surface as a `QUOTA` error with model-switch/billing guidance and a reset estimate instead of a generic retryable rate limit. The browser-control layer itself was verified live without the model: clicking the first `watch?v=` result on YouTube starts playback (video advances, Pause control appears), so the managed browser, ref-based clicking, and media detection behave correctly once the model quota allows the loop to finish.
 
@@ -116,6 +120,7 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Con
 - [x] Added daily-quota detection with reset guidance and media-aware browser keep-open behavior.
 - [x] Added automatic retry for transient provider failures within a turn.
 - [x] Added automatic provider fallback with a settings toggle (Phase 2 slice).
+- [x] Added voice output (Windows `speechSynthesis`), hands-free listening, voice-activity detection, and interruptible speech (Phase 5 slice).
 
 - **Initial release commit:** `c315cd7a09641a33d0337214c607a12f9b32e447`
 - **Remote:** `https://github.com/samarthimasal-oss/igris`

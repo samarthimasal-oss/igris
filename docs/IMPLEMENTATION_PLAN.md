@@ -1,6 +1,6 @@
 # IGRIS 2.0 Implementation Plan
 
-Status legend: ✅ shipped and verified · 🔧 partially shipped (gaps listed) · ⬜ not started.
+Status legend: ✅ shipped and verified · 🔧 partially shipped (gaps listed) · ⬜ not started · ⏸ deferred with rationale.
 
 This plan maps the IGRIS 2.0 requirements onto the existing codebase. It is the
 working contract for the upgrade: phases are implemented in order, each with
@@ -28,7 +28,8 @@ tests and documentation, and no phase is marked complete until its tests pass.
 | Browser downloads with approval | 🔧 | Downloads are currently hard-blocked (`acceptDownloads: false`); an approval-gated path is a possible later add |
 | CAPTCHA/MFA human handoff | 🔧 | Blocklist + "stop and explain" prompt rules; no dedicated handoff UX yet |
 | Voice: push-to-talk STT | ✅ | Mic capture in `ChatPage` → `voice.transcribe` (Gemini inline audio) |
-| Voice: wake word ("Hey IGRIS"), TTS replies, VAD, interruptible speech, continuous mode | ⬜ | Phase 5 |
+| Voice: TTS replies, VAD, interruptible speech, hands-free continuous mode | ✅ | `src/shared/speech.ts`, `ChatPage.tsx`, Settings → Voice; wake word deferred (see Phase 5) |
+| Voice: wake word ("Hey IGRIS") | ⏸ | Deferred: Web Speech needs Google's backend (fails `network`), Gemini per-window STT burns free quota, local engines need a vendor AccessKey |
 | Memory store (SQLite, kinds, search, inspect/edit/delete, model recall) | ✅ | `MemoryRepository`, save/search memory tools, prompt block (explicit-save only) |
 | Memory: duplicate detection | ⬜ | Phase 7 |
 | Coding assistant (scan, tree, read/search/write/patch, rename/delete, checkpoints, run command, run tests, git via terminal) | ✅ | `fileService`, `terminalService`, `registry.ts`, workspace permission gates |
@@ -68,12 +69,24 @@ screenshot diffing for verifier evidence (Phase 6).
 
 ## Phase 5 — Voice assistant
 
-⬜ Current. Plan:
+🔧 Core slice complete. Shipped: TTS replies via `speechSynthesis` (Windows
+voices, no paid API) with voice settings (enabled, voice, rate) in Settings →
+Voice; spoken text is prose-only via `speechScript` (code/tables/markdown
+stripped, tested); speech is interrupted when the user talks, sends, or stops;
+hands-free continuous listening (explicit toggle) re-arms the mic between turns
+with a voice-activity gate so silent recordings are never transcribed;
+verified live: `speechSynthesis.speaking` with Microsoft David/Mark/Zira, the
+audio graph runs without a user gesture, real mic RMS gates work.
 
-1. TTS replies via `speechSynthesis` in the renderer (Windows voices, no paid API), with a voice settings section (enabled, voice, rate).
-2. Interruptible speech: speaking stops when the user starts talking or presses Stop.
-3. Wake word: a small local keyword listener using continuous `getUserMedia` + provider transcription of short rolling windows is possible but costly in API calls; the honest local alternative is Web Speech `SpeechRecognition` where the Chromium build supports it, otherwise wake-word ships as a manual mic toggle. Decide after a capability probe in the running app.
-4. Files: `voiceService.ts` (TTS orchestration), `ChatPage.tsx` (mic + speaker state), `SettingsPage.tsx` (voice settings), `shared/types.ts` (settings).
+Deferred: **wake word ("Hey IGRIS")**. The Chromium SpeechRecognition API in
+this Electron build fails with `error:network` (no Google speech backend), a
+per-window Gemini transcription loop would burn the free daily quota, and a
+local engine (Porcupine) needs a vendor AccessKey. Push-to-talk + hands-free is
+the supported path; revisit if a local engine becomes acceptable.
+
+Files: `src/shared/speech.ts` (new), `ChatPage.tsx`, `SettingsPage.tsx`,
+`store.ts`, `shared/types.ts` + `defaults.ts`; tests
+`tests/unit/speech.test.ts`.
 
 ## Phase 6 — Agent orchestration
 

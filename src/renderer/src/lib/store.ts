@@ -18,6 +18,7 @@ import type {
   Workspace
 } from '@shared/types'
 import { errorHint, errorMessage } from './errors'
+import { speak, stopSpeaking } from '@shared/speech'
 
 export type RunStatus =
   | 'starting'
@@ -419,6 +420,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
         break
       }
       case 'done': {
+        {
+          const run = get().runs[event.runId]
+          const current = get().settings
+          if (
+            current?.voice.ttsEnabled &&
+            run?.conversationId &&
+            run.conversationId === get().activeConversation?.id
+          ) {
+            speak(event.message.content || run.text, {
+              voice: current.voice.ttsVoice || undefined,
+              rate: current.voice.ttsRate
+            })
+          }
+        }
         set((state) => {
           const run = state.runs[event.runId]
           if (!run) return state
@@ -574,6 +589,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!bridge) return
     const trimmed = content.trim()
     if (!trimmed) return
+    stopSpeaking()
     const state = get()
     const activeRun = Object.values(state.runs).find(
       (run) => run.conversationId === state.activeConversation?.id && !run.finished
@@ -630,6 +646,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   cancelRun: async (runId) => {
     const bridge = api()
     if (!bridge) return
+    stopSpeaking()
     try {
       const result = await bridge.chat.cancel(runId)
       if (!result.ok) get().notify('info', 'Nothing to stop', result.message)

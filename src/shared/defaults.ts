@@ -41,6 +41,12 @@ export const DEFAULT_SETTINGS: Settings = {
     confirmSensitiveActions: true,
     autoFallback: true
   },
+  voice: {
+    ttsEnabled: false,
+    ttsVoice: '',
+    ttsRate: 1,
+    handsFree: false
+  },
   onboardingComplete: false
 }
 

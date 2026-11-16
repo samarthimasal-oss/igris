@@ -20,6 +20,14 @@ tested slice. See `docs/IMPLEMENTATION_PLAN.md` for the full phase plan and
   toggle in Settings → AI (default on); restores the original provider and
   rethrows the original error when the chain is exhausted. Tested in
   `tests/unit/chatFallback.test.ts` (5 tests).
+- **Voice output and hands-free mode (Phase 5 slice).** Replies are spoken
+  aloud with Windows `speechSynthesis` voices (Settings → Voice: enabled,
+  voice, rate; default off). Spoken text is reduced to prose — code blocks,
+  tables, and markdown are stripped (`src/shared/speech.ts`) — and speech is
+  interrupted when you start talking, send a message, or press Stop. Hands-free
+  listening re-arms the microphone between turns when explicitly enabled, with
+  a voice-activity gate so silent recordings are never transcribed. Wake word
+  ("Hey IGRIS") is deferred with rationale in `docs/STATUS.md`.
 - In-turn transient retry: up to two extra attempts with 2s/6s backoff for
   retryable provider errors (503 high-demand, brief rate limits, network
   drops), only before any output was streamed.

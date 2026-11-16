@@ -53,12 +53,20 @@ export interface AiSettings {
   autoFallback: boolean
 }
 
+export interface VoiceSettings {
+  ttsEnabled: boolean
+  ttsVoice: string
+  ttsRate: number
+  handsFree: boolean
+}
+
 export interface Settings {
   appearance: AppearanceSettings
   desktop: DesktopSettings
   permissions: Permissions
   privacy: PrivacySettings
   ai: AiSettings
+  voice: VoiceSettings
   onboardingComplete: boolean
 }
 
