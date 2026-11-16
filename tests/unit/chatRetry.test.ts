@@ -3,8 +3,14 @@ import { ChatEngine } from '../../src/main/ai/chatEngine'
 import { AppError } from '../../src/main/security/errors'
 import type { ProviderStreamEvent } from '../../src/main/ai/types'
 
-function makeEngine(): ChatEngine {
-  return new ChatEngine({
+const DEFAULT_SETTINGS = {
+  ai: { streaming: false, contextMessages: 10, maxToolIterations: 10, temperature: 0.3 }
+}
+
+function makeEngine(
+  retryDelay: (ms: number) => Promise<void> = () => Promise.resolve()
+): ChatEngine {
+  const engine = new ChatEngine({
     conversations: {},
     memories: { recent: () => [] },
     workspaces: { list: () => [] },
@@ -17,32 +23,25 @@ function makeEngine(): ChatEngine {
     logger: { warn: () => undefined, info: () => undefined },
     emit: () => undefined
   } as never)
+  ;(engine as unknown as { retryDelay: (ms: number) => Promise<void> }).retryDelay = retryDelay
+  return engine
 }
 
-const DEFAULT_SETTINGS = {
-  ai: { streaming: false, contextMessages: 10, maxToolIterations: 10, temperature: 0.3 }
-}
-
-type Behavior = 'throw' | 'throw-after-output' | 'text' | 'text-then-text'
+type Behavior = 'throw' | 'throw-after-output' | 'text'
 
 function adapterWith(behaviors: Behavior[]): {
   adapter: { stream: () => AsyncGenerator<ProviderStreamEvent> }
   callCount: () => number
 } {
-  let index = 0
   const calls = { count: 0 }
   const adapter = {
     stream: async function* (): AsyncGenerator<ProviderStreamEvent> {
-      const behavior = behaviors[index] ?? 'text'
-      index += 1
+      const behavior = behaviors[calls.count] ?? 'text'
       calls.count += 1
       if (behavior === 'throw') throw new AppError('PROVIDER', 'server hiccup')
       if (behavior === 'throw-after-output') {
         yield { type: 'text', text: 'partial' }
         throw new AppError('PROVIDER', 'stream died')
-      }
-      if (behavior === 'text-then-text') {
-        yield { type: 'text', text: 'first ' }
       }
       yield { type: 'text', text: 'ok' }
     }
@@ -50,8 +49,8 @@ function adapterWith(behaviors: Behavior[]): {
   return { adapter, callCount: () => calls.count }
 }
 
-function makeActive(adapter: unknown): unknown {
-  return {
+function runTurn(engine: ChatEngine, adapter: unknown): Promise<unknown> {
+  const active = {
     controller: new AbortController(),
     runId: 'run-1',
     provider: {
@@ -61,10 +60,7 @@ function makeActive(adapter: unknown): unknown {
       runtime: { supportsTools: true }
     }
   }
-}
-
-function makeRequest() {
-  return {
+  const request = {
     model: 'test-model',
     system: 'test',
     messages: [{ role: 'user' as const, content: 'hi' }],
@@ -73,82 +69,57 @@ function makeRequest() {
     maxOutputTokens: 64,
     streaming: false
   }
-}
-
-async function runTurn(engine: ChatEngine, adapter: unknown): Promise<unknown> {
-  const streamTurn = (
+  return (
     engine as unknown as {
       streamTurn: (active: unknown, request: unknown) => Promise<unknown>
     }
-  ).streamTurn.bind(engine)
-  return streamTurn(makeActive(adapter), makeRequest())
+  ).streamTurn(active, request)
 }
 
 describe('provider transient retry', () => {
   it('retries a transient failure that produced no output', async () => {
-    const engine = makeEngine()
-    ;(engine as unknown as { retryDelay: () => Promise<void> }).retryDelay = () =>
-      Promise.resolve()
     const { adapter, callCount } = adapterWith(['throw', 'text'])
 
-    const result = (await runTurn(engine, adapter)) as { text: string }
+    const result = (await runTurn(makeEngine(), adapter)) as { text: string }
     expect(result.text).toBe('ok')
     expect(callCount()).toBe(2)
   })
 
   it('does not retry once output was already delivered', async () => {
-    const engine = makeEngine()
-    ;(engine as unknown as { retryDelay: () => Promise<void> }).retryDelay = () =>
-      Promise.resolve()
     const { adapter, callCount } = adapterWith(['throw-after-output', 'text'])
 
-    await expect(runTurn(engine, adapter)).rejects.toThrow('stream died')
+    await expect(runTurn(makeEngine(), adapter)).rejects.toThrow('stream died')
     expect(callCount()).toBe(1)
   })
 
   it('does not retry non-retryable quota failures', async () => {
-    const engine = makeEngine()
-    ;(engine as unknown as { retryDelay: () => Promise<void> }).retryDelay = () =>
-      Promise.resolve()
-    let index = 0
+    let attempts = 0
     const adapter = {
       stream: async function* (): AsyncGenerator<ProviderStreamEvent> {
-        index += 1
+        attempts += 1
         throw new AppError('QUOTA', 'daily quota exhausted', { retryable: false })
       }
     }
 
-    await expect(runTurn(engine, adapter)).rejects.toThrow('daily quota exhausted')
-    expect(index).toBe(1)
+    await expect(runTurn(makeEngine(), adapter)).rejects.toThrow('daily quota exhausted')
+    expect(attempts).toBe(1)
   })
 
   it('gives up after the third attempt', async () => {
-    const engine = makeEngine()
-    ;(engine as unknown as { retryDelay: () => Promise<void> }).retryDelay = () =>
-      Promise.resolve()
-    let count = 0
-    const adapter = {
-      stream: async function* (): AsyncGenerator<ProviderStreamEvent> {
-        count += 1
-        throw new AppError('PROVIDER', 'still down')
-      }
-    }
+    const { adapter, callCount } = adapterWith(['throw', 'throw', 'throw'])
 
-    await expect(runTurn(engine, adapter)).rejects.toThrow('still down')
-    expect(count).toBe(3)
+    await expect(runTurn(makeEngine(), adapter)).rejects.toThrow('server hiccup')
+    expect(callCount()).toBe(3)
   })
 
   it('waits between attempts', async () => {
     vi.useFakeTimers()
     try {
-      const engine = makeEngine()
       const delays: number[] = []
-      ;(engine as unknown as { retryDelay: (ms: number) => Promise<void> }).retryDelay = (
-        ms: number
-      ) => {
+      const engine = makeEngine((ms) => {
         delays.push(ms)
         return new Promise((resolve) => setTimeout(resolve, ms))
-      }
+      })
       const { adapter, callCount } = adapterWith(['throw', 'throw', 'text'])
 
       const promise = runTurn(engine, adapter)

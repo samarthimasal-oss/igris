@@ -334,12 +334,10 @@ async function boot(): Promise<void> {
       const explicit = control.endedExplicitly()
       void desktopControlService.releaseAll()
       void (async () => {
-        if (!explicit) {
-          const playing = await browserControlService.hasPlayingMedia()
-          if (playing && !control.activeState()) {
-            appLogger.info('control', 'Keeping the managed browser open because media is playing.')
-            return
-          }
+        const playing = !explicit && (await browserControlService.hasPlayingMedia())
+        if (playing && !control.activeState()) {
+          appLogger.info('control', 'Keeping the managed browser open because media is playing.')
+          return
         }
         if (!control.activeState()) await browserControlService.stop()
       })()

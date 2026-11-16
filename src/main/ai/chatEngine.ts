@@ -778,34 +778,58 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
   ): Promise<TurnResult> {
     const timeout = AbortSignal.timeout(180_000)
     const signal = AbortSignal.any([active.controller.signal, timeout])
-    const attempts = 3
-    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    for (let attempt = 1; ; attempt += 1) {
       let delivered = false
       try {
-        return await this.consumeProviderStream(active, request, signal, () => {
+        let text = ''
+        const toolCalls: ToolCall[] = []
+        const usage: TurnResult['usage'] = {}
+        let streamingStarted = false
+        const shouldStream = this.deps.settings.get().ai.streaming
+        for await (const event of active.provider.adapter.stream(
+          { ...request, signal },
+          active.provider.runtime
+        )) {
           delivered = true
-        })
+          if (event.type === 'text') {
+            text += event.text
+            if (shouldStream) {
+              if (!streamingStarted) {
+                streamingStarted = true
+                this.emit({ type: 'status', runId: active.runId, status: 'streaming' })
+              }
+              this.emit({ type: 'delta', runId: active.runId, text: event.text })
+            }
+          } else if (event.type === 'tool_call') {
+            toolCalls.push(event.call)
+          } else if (event.type === 'usage') {
+            if (event.inputTokens) usage.inputTokens = (usage.inputTokens ?? 0) + event.inputTokens
+            if (event.outputTokens) {
+              usage.outputTokens = (usage.outputTokens ?? 0) + event.outputTokens
+            }
+            if (event.totalTokens) usage.totalTokens = (usage.totalTokens ?? 0) + event.totalTokens
+          }
+        }
+        return { text, toolCalls, usage }
       } catch (error) {
         if (timeout.aborted && !active.controller.signal.aborted) {
           throw new AppError('TIMEOUT', 'The provider did not respond within 3 minutes.')
         }
         const appError = error instanceof AppError ? error : null
-        // Only transient failures that produced no output can be retried:
-        // retrying mid-stream would duplicate text already delivered.
+        // Retry only transient failures that produced no output; a mid-stream
+        // retry would duplicate text already delivered.
         if (
           !appError?.retryable ||
-          attempt === attempts ||
-          active.controller.signal.aborted ||
-          delivered
+          delivered ||
+          attempt >= 3 ||
+          active.controller.signal.aborted
         ) {
           throw error
         }
         const delay = attempt === 1 ? 2_000 : 6_000
         this.deps.logger.warn(
           'chat',
-          `Transient provider failure (${appError.code}); retrying in ${delay}ms (attempt ${
-            attempt + 1
-          }/${attempts}).`
+          `Transient provider failure (${appError.code}); retrying in ${delay}ms (${attempt + 1}/3).`
         )
         await this.retryDelay(delay)
         if (active.controller.signal.aborted) {
@@ -813,64 +837,10 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
         }
       }
     }
-    throw new AppError('PROVIDER', 'The provider request failed.')
   }
 
   private retryDelay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
-  }
-
-  private async consumeProviderStream(
-    active: ActiveRun,
-    request: {
-      model: string
-      sessionId?: string
-      system: string
-      messages: ModelMessage[]
-      tools: ModelTool[]
-      temperature: number
-      maxOutputTokens: number
-      streaming: boolean
-    },
-    signal: AbortSignal,
-    onFirstEvent: () => void
-  ): Promise<TurnResult> {
-    let text = ''
-    const toolCalls: ToolCall[] = []
-    const usage: TurnResult['usage'] = {}
-    let streamingStarted = false
-    let seenEvent = false
-    const shouldStream = this.deps.settings.get().ai.streaming
-
-    for await (const event of active.provider.adapter.stream(
-      {
-        ...request,
-        signal
-      },
-      active.provider.runtime
-    )) {
-      if (!seenEvent) {
-        seenEvent = true
-        onFirstEvent()
-      }
-      if (event.type === 'text') {
-        text += event.text
-        if (shouldStream) {
-          if (!streamingStarted) {
-            streamingStarted = true
-            this.emit({ type: 'status', runId: active.runId, status: 'streaming' })
-          }
-          this.emit({ type: 'delta', runId: active.runId, text: event.text })
-        }
-      } else if (event.type === 'tool_call') {
-        toolCalls.push(event.call)
-      } else if (event.type === 'usage') {
-        if (event.inputTokens) usage.inputTokens = (usage.inputTokens ?? 0) + event.inputTokens
-        if (event.outputTokens) usage.outputTokens = (usage.outputTokens ?? 0) + event.outputTokens
-        if (event.totalTokens) usage.totalTokens = (usage.totalTokens ?? 0) + event.totalTokens
-      }
-    }
-    return { text, toolCalls, usage }
   }
 
   private awaitConfirmation(

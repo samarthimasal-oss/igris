@@ -152,10 +152,7 @@ export interface ToolCall {
   id: string
   name: string
   arguments: Record<string, unknown>
-  /**
-   * Gemini 3 returns an opaque signature on function-call parts and rejects the
-   * next turn if it is missing. Other providers ignore it.
-   */
+  /** Gemini 3 signature on function-call parts; it must be echoed back next turn. */
   thoughtSignature?: string
 }
 

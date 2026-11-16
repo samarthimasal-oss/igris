@@ -52,9 +52,8 @@ export class ControlSessionService {
   private readonly listeners = new Set<ControlStateListener>()
   private readonly limits: Required<ControlSessionLimits>
   /**
-   * True when the most recent teardown came from an explicit stop (user, HUD,
-   * hotkey, app quit) rather than the task ending on its own. The app uses this
-   * to decide whether it may keep the managed browser open for playing media.
+   * True when the latest teardown was an explicit stop (user, HUD, hotkey,
+   * app quit) rather than the task finishing on its own.
    */
   private lastEndWasExplicit = false
 

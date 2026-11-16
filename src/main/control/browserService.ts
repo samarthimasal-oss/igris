@@ -777,19 +777,18 @@ export class BrowserService {
 
   /** True when any tab is actively playing audio or video. */
   async hasPlayingMedia(): Promise<boolean> {
-    const context = this.context
-    if (!context) return false
-    for (const page of context.pages()) {
+    for (const page of this.context?.pages() ?? []) {
       if (page.isClosed()) continue
       try {
-        const playing = await page.evaluate(() => {
-          const media = Array.from(document.querySelectorAll('video, audio'))
-          return media.some((element) => {
-            const player = element as HTMLMediaElement
-            return !player.paused && !player.ended && player.readyState >= 2
-          })
-        })
-        if (playing) return true
+        if (
+          await page.evaluate(() =>
+            Array.from(
+              document.querySelectorAll('video, audio') as NodeListOf<HTMLMediaElement>
+            ).some((media) => !media.paused && !media.ended && media.readyState >= 2)
+          )
+        ) {
+          return true
+        }
       } catch {
         // A page can navigate while it is being inspected.
       }

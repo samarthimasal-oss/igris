@@ -74,11 +74,10 @@ function mapContents(messages: ModelMessage[]): GeminiContent[] {
       const parts: GeminiPart[] = []
       if (message.content) parts.push({ text: message.content })
       for (const call of message.toolCalls ?? []) {
-        const part: GeminiPart = {
-          functionCall: { name: call.name, args: call.arguments ?? {} }
-        }
-        if (call.thoughtSignature) part.thoughtSignature = call.thoughtSignature
-        parts.push(part)
+        parts.push({
+          functionCall: { name: call.name, args: call.arguments ?? {} },
+          ...(call.thoughtSignature ? { thoughtSignature: call.thoughtSignature } : {})
+        })
       }
       push('model', parts)
       continue
@@ -136,16 +135,15 @@ export function sanitizeGeminiSchema(value: unknown): unknown {
   return value
 }
 
-function extractParts(chunk: GeminiChunk): {
-  text: string
-  calls: Array<{ name: string; args: Record<string, unknown>; thoughtSignature?: string }>
-} {
+interface GeminiCall {
+  name: string
+  args: Record<string, unknown>
+  thoughtSignature?: string
+}
+
+function extractParts(chunk: GeminiChunk): { text: string; calls: GeminiCall[] } {
   let text = ''
-  const calls: Array<{
-    name: string
-    args: Record<string, unknown>
-    thoughtSignature?: string
-  }> = []
+  const calls: GeminiCall[] = []
   for (const candidate of chunk.candidates ?? []) {
     for (const part of candidate.content?.parts ?? []) {
       if ('text' in part && typeof part.text === 'string') text += part.text
