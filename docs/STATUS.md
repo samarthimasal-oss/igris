@@ -26,7 +26,7 @@
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
 | Windows 10/11 packaging | Complete | NSIS installer built at `release/IGRIS-1.0.0-x64-Setup.exe` |
-| Tests | Complete | 188 unit/integration (1 skipped) + 9 Electron E2E passing |
+| Tests | Complete | 188 unit/integration (1 skipped) + 10 Electron E2E passing |
 | Documentation | Complete | README + architecture, security, testing, status docs |
 | Secrets excluded from git | Complete | `.gitignore`; no keys or `.env` files in the tree |
 
@@ -128,10 +128,12 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Con
 - [x] Added the agent orchestration slice: persisted `plan_task` plans, an evidence-based verifier pass with settings toggle, per-step verdicts merged into plans, and plan-aware task retries (Phase 6 slice).
 - [x] Added memory duplicate detection on save (Phase 7 slice).
 - [x] Added an automatic recovery checkpoint before renames; writes and patches already auto-backup (Phase 8 slice).
+- [x] Swept every UI control for dead buttons and verified hover/focus/HUD state mapping; added an E2E check for the Phase 5/6 settings controls (Phase 9 slice).
+- [x] Re-ran the IPC/security audit for the new slices, refreshed SECURITY.md, and rebuilt the installer with a fresh checksum (Phase 10).
 
 - **Initial release commit:** `c315cd7a09641a33d0337214c607a12f9b32e447`
 - **Remote:** `https://github.com/samarthimasal-oss/igris`
 - **Desktop-control branch:** `feature/desktop-control`
-- **Installer SHA-256:** `94EE8FBE458F76D9FF217814C02EF24D6D6E5760D0DA6216B7FCA2E3934B01B2` (predates the provider-fallback slice; the installer is rebuilt and the checksum refreshed at the next packaging checkpoint)
+- **Installer SHA-256:** `2A9FBDD92B1F4874ACA74D09E975E68F5E3FABE8D7792F26282691B11C4950D0` (rebuilt after all IGRIS 2.0 slices — fallback, voice, orchestration, memory dedupe, checkpoints; packaged smoke passes)
 
 The NSIS installer is built locally but intentionally not committed. It is unsigned and is not attached to a GitHub release.

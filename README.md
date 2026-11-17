@@ -222,7 +222,7 @@ Use **Settings → Privacy & data** to export data, clear conversation and memor
 
 - `npm run typecheck` — passing
 - `npm test` - **188 passing, 1 skipped** across 27 files
-- `npm run test:e2e` - **9 Electron smoke tests passing**
+- `npm run test:e2e` - **10 Electron smoke tests passing**
 - `npm run test:packaged` — packaged `IGRIS.exe` boots, bridges, routes, and loads the operator asset and HUD
 - `npm run pack` — passing (`release/win-unpacked/IGRIS.exe`)
 - `npm run dist` — passing (`release/IGRIS-1.0.0-x64-Setup.exe`)

@@ -43,6 +43,15 @@ tested slice. See `docs/IMPLEMENTATION_PLAN.md` for the full phase plan and
 - **Rename checkpoint (Phase 8 slice).** `rename_entry` checkpoints the source
   file before moving it; writes and patches already auto-backup, and deletes go
   to the Recycle Bin.
+- **UI dead-control sweep (Phase 9 slice).** Every visible control verified
+  wired to real state/IPC/navigation; hover and `:focus-visible` coverage
+  confirmed; HUD state mapping E2E-verified; new E2E check covers the Phase 5/6
+  settings controls (10 Electron smoke tests passing).
+- **Final security audit + rebuild (Phase 10).** Permissions/IPC re-audit
+  clean for all new slices (verifier has no tools; fallback only retries the
+  user's own providers; dedupe is local; rename checkpoints stay in the backup
+  root); SECURITY.md refreshed; installer rebuilt and the SHA-256 in
+  `docs/STATUS.md` updated; packaged smoke passes.
 - In-turn transient retry: up to two extra attempts with 2s/6s backoff for
   retryable provider errors (503 high-demand, brief rate limits, network
   drops), only before any output was streamed.

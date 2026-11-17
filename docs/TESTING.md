@@ -259,7 +259,8 @@ Coverage:
 6. **OpenRouter preset** — selecting OpenRouter Free fills the locked endpoint and shows the free-only notice.
 7. **Minimize launcher** - minimizes the workspace, verifies the robot bubble opens, clicks it, and confirms the main window is restored and the bubble hides.
 8. **Control HUD** — starts a session through the E2E hook, verifies the HUD and Home strip show the goal, pauses/resumes from both surfaces, stops, and confirms the HUD hides and the strip clears.
-9. **Control approval** — emits a `request_computer_control` confirmation, verifies the goal, **Allow for this task**, and stop hotkey copy, then resolves it as denied and confirms the modal closes.
+9. **Phase 5/6 settings controls** — the Settings page renders the "Automatic provider fallback" and "Verify consequential actions" toggles and the hands-free listening control, each wired to a real button.
+10. **Control approval** — emits a `request_computer_control` confirmation, verifies the goal, **Allow for this task**, and stop hotkey copy, then resolves it as denied and confirms the modal closes.
 
 The test profile is removed after the run. Playwright traces are retained on failure under `test-results/`.
 

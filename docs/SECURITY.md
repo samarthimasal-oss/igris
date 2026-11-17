@@ -171,6 +171,13 @@ Desktop control is a separate, task-scoped capability. It is never enabled impli
 
 **Caveat:** pattern-based redaction is best-effort. Unusual secret formats, secrets split across lines, or secrets in images may not be detected. Avoid pasting secrets into chat.
 
+## Verification, fallback, and new slices
+
+- **Outcome verifier (Phase 6).** After a task that used consequential tools, one bounded model call judges only the task objective and truncated tool results. The verifier call carries **no tools** (`tools: []`), so it cannot execute anything; its JSON verdict can only mark the task verified/failed/unverified. Infrastructure errors in the verifier are recorded as `unverified` and never as success.
+- **Provider fallback.** A failing turn may be retried against the user's other configured providers only, and only before any output was delivered. No new endpoints are contacted (see Network behavior). Provider keys stay in the main process throughout.
+- **Memory duplicate detection.** Similarity is computed locally (token overlap in the main process); a duplicate check makes no network or model call and exposes nothing.
+- **Rename checkpoint.** The pre-rename copy is written inside IGRIS's own backup root after the same `WorkspaceBoundary` validation as every other file operation.
+
 ## Network behavior
 
 IGRIS makes network requests only to:

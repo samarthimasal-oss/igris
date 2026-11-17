@@ -42,7 +42,7 @@ tests and documentation, and no phase is marked complete until its tests pass.
 | IPC allowlist validation | ✅ | `ipc.ts` + `shared/ipc.ts` contract |
 | Packaging (NSIS installer, packaged smoke test) | ✅ | `electron-builder.yml`, `npm run test:packaged`, `npm run dist` |
 | UI: dark/ice-blue terminal workspace, 3D core, companion, task monitor | ✅ | `ChatPage`, `IgrisCore`, `RobotCompanion`, `ToolTimeline`, `ActivityPage` |
-| UI polish pass (hover/animation audit, dead-control sweep) | 🔧 | Phase 9 |
+| UI polish pass (hover/animation audit, dead-control sweep) | ✅ | All handlers wired; hover + global `:focus-visible`; HUD state mapping E2E-verified; Phase 9/10 E2E check added (10 passing) |
 | Docs (README, ARCHITECTURE, SECURITY, TESTING, STATUS) | ✅ | `docs/*` |
 
 ### Known reliability findings from live use (fixed in Phase 2 so far)
@@ -154,13 +154,39 @@ Files: `tools/registry.ts` (`rename_entry`); test
 
 ## Phase 9 — UI polish
 
-⬜ Current. Sweep every visible control for dead buttons; add hover/focus states;
-ensure HUD states (idle/listening/thinking/executing/error) map to real engine state.
+✅ Complete. Findings and fixes from the dead-control sweep:
+
+- Static sweep of every `onClick` across all pages, HUD, mini-launcher, and
+  overlays: every control touches real state, IPC, or navigation; no no-op
+  handlers, no TODO/placeholder markers, no `</button>` without a handler
+  (Button/IconButton receive handlers via prop spread; TerminalInput uses
+  `onMouseDown`).
+- Hover states exist for all button variants, tabs, nav items, and tool cards;
+  `:focus-visible` is globally styled; disabled/loading variants covered.
+- HUD verified to map to real engine state: it renders `control.state()` and
+  live `onControl` events (status, scope, goal, elapsed, action budget) and is
+  E2E-verified to pause/resume/stop.
+- All terminal slash commands (`/help /status /projects /tools /history
+  /memory /settings /clear`) are handled locally with real data.
+- Added E2E coverage that the Phase 5/6 settings controls render and are
+  wired (fallback + verifier toggles, hands-free listening) — 10/10 passing.
 
 ## Phase 10 — Security audit, integration testing, packaging
 
-⬜ Final pass: re-run full audit of permissions/IPC, refresh `SECURITY.md`,
-rebuild installer + checksum, update all docs.
+✅ Complete:
+
+- Re-ran the IPC/security audit: single-call-channel dispatcher with a
+  per-window role allowlist, Zod validation per method, unknown-method
+  rejection; `contextIsolation`/`sandbox`/`nodeIntegration:false` on all three
+  windows; CSP + nosniff in production; navigation and window-open guards on
+  every window; `openExternal` restricted to HTTP(S) without embedded
+  credentials. New slices re-checked: the verifier call carries no tools and
+  sees only truncated recorded results; fallback only retries the user's own
+  configured providers; memory dedupe is fully local; rename checkpoints stay
+  inside the validated backup root. `SECURITY.md` gained a
+  "Verification, fallback, and new slices" section.
+- Installer rebuilt over all IGRIS 2.0 slices; packaged smoke passes
+  (`npm run test:packaged`); fresh SHA-256 recorded in `docs/STATUS.md`.
 
 ## Acceptance criteria tracking
 

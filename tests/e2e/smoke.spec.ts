@@ -275,6 +275,24 @@ test('shows the control bar, pauses, resumes, and stops from the HUD', async () 
   expect(pageErrors).toEqual([])
 })
 
+test('renders the Phase 5/6 controls: fallback + verifier toggles and the voice card', async () => {
+  await page.evaluate(() => {
+    window.location.hash = '#/settings'
+  })
+  await page.locator('.settings-page').waitFor({ state: 'visible' })
+
+  // The settings page is a single scrollspy document; every section is mounted.
+  const fallbackToggle = page.locator('.toggle-row', { hasText: 'Automatic provider fallback' })
+  const verifierToggle = page.locator('.toggle-row', { hasText: 'Verify consequential actions' })
+  const handsFreeToggle = page.locator('.toggle-row', { hasText: 'Hands-free listening' })
+  for (const toggle of [fallbackToggle, verifierToggle, handsFreeToggle]) {
+    await toggle.scrollIntoViewIfNeeded().catch(() => undefined)
+    await expect(toggle).toBeVisible()
+    await expect(toggle.locator('button')).toHaveCount(1)
+  }
+  expect(pageErrors).toEqual([])
+})
+
 test('renders the computer-control approval variant', async () => {
   await app.evaluate(() => {
     const hooks = (
