@@ -26,7 +26,7 @@
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
 | Windows 10/11 packaging | Complete | NSIS installer built at `release/IGRIS-1.0.0-x64-Setup.exe` |
-| Tests | Complete | 186 unit/integration (1 skipped) + 9 Electron E2E passing |
+| Tests | Complete | 188 unit/integration (1 skipped) + 9 Electron E2E passing |
 | Documentation | Complete | README + architecture, security, testing, status docs |
 | Secrets excluded from git | Complete | `.gitignore`; no keys or `.env` files in the tree |
 
@@ -34,7 +34,7 @@
 
 ```text
 npm run typecheck   PASS
-npm test            26 files, 186 passed, 1 skipped
+npm test            27 files, 188 passed, 1 skipped
 npm run test:e2e    9 tests PASS
 npm run test:packaged PASS (packaged IGRIS.exe, operator asset, HUD)
 npm run pack        PASS -> release/win-unpacked/IGRIS.exe
@@ -127,6 +127,7 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Con
 - [x] Added voice output (Windows `speechSynthesis`), hands-free listening, voice-activity detection, and interruptible speech (Phase 5 slice).
 - [x] Added the agent orchestration slice: persisted `plan_task` plans, an evidence-based verifier pass with settings toggle, per-step verdicts merged into plans, and plan-aware task retries (Phase 6 slice).
 - [x] Added memory duplicate detection on save (Phase 7 slice).
+- [x] Added an automatic recovery checkpoint before renames; writes and patches already auto-backup (Phase 8 slice).
 
 - **Initial release commit:** `c315cd7a09641a33d0337214c607a12f9b32e447`
 - **Remote:** `https://github.com/samarthimasal-oss/igris`

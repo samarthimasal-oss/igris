@@ -436,8 +436,20 @@ export function createToolRegistry(deps: ToolDependencies): {
       }),
       run: async (args, context) => {
         const workspace = resolveWorkspace(deps, args.workspace, context.preferredWorkspaceId)
+        // Recovery checkpoint for the only content-move without a built-in backup.
+        let checkpoint: string | null = null
+        try {
+          checkpoint = deps.files.backupFile(workspace.id, args.from)
+        } catch {
+          // Directories cannot be file-checkpointed; renames stay atomic.
+        }
         deps.files.rename(workspace.id, args.from, args.to)
-        return { text: `Renamed ${args.from} to ${args.to}.`, display: `Renamed ${args.from}` }
+        return {
+          text: `Renamed ${args.from} to ${args.to}.${
+            checkpoint ? ` Checkpoint of the original saved at ${checkpoint}.` : ''
+          }`,
+          display: `Renamed ${args.from}`
+        }
       }
     }),
 

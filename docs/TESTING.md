@@ -27,7 +27,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **186 passing**, 1 skipped, 26 files |
+| `npm test` | **188 passing**, 1 skipped, 27 files |
 | `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
@@ -198,6 +198,11 @@ Live provider calls are intentionally not automated because no API key is presen
 
 - `findSimilarMemory` catches exact duplicates after case/punctuation/whitespace normalization, catches near-identical rephrasings via token overlap (Jaccard ≥ 0.8), never flags genuinely different text, and reports the most similar entry;
 - the `save_memory` tool refuses duplicates (reports the existing memory id, does not write) and still saves genuinely new text.
+
+### `tests/unit/renameCheckpoint.test.ts`
+
+- `rename_entry` checkpoints the source file before the rename and reports the backup location;
+- when the item cannot be checkpointed (e.g. a directory), the rename still proceeds and no checkpoint is reported.
 
 ### `tests/unit/geminiSchema.test.ts`
 

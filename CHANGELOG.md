@@ -40,6 +40,9 @@ tested slice. See `docs/IMPLEMENTATION_PLAN.md` for the full phase plan and
   and compares token overlap against the existing store (`src/shared/similar.ts`);
   a duplicate is refused with the original memory id reported instead of adding
   a near-copy.
+- **Rename checkpoint (Phase 8 slice).** `rename_entry` checkpoints the source
+  file before moving it; writes and patches already auto-backup, and deletes go
+  to the Recycle Bin.
 - In-turn transient retry: up to two extra attempts with 2s/6s backoff for
   retryable provider errors (503 high-demand, brief rate limits, network
   drops), only before any output was streamed.

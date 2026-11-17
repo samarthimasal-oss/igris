@@ -33,6 +33,7 @@ tests and documentation, and no phase is marked complete until its tests pass.
 | Memory store (SQLite, kinds, search, inspect/edit/delete, model recall) | ✅ | `MemoryRepository`, save/search memory tools, prompt block (explicit-save only) |
 | Memory: duplicate detection | ✅ | `findSimilarMemory` (normalize + Jaccard 0.8) gates `save_memory`; near-copies refused with the original id |
 | Coding assistant (scan, tree, read/search/write/patch, rename/delete, checkpoints, run command, run tests, git via terminal) | ✅ | `fileService`, `terminalService`, `registry.ts`, workspace permission gates |
+| Coding assistant: automatic checkpoints | ✅ | write/patch auto-backup + rename auto-checkpoint + Recycle-Bin delete; grouped checkpoints model-invoked |
 | Agent orchestration: executor loop, step tracking, limits | ✅ | `chatEngine` loop + `taskService` step records; bounded by turns/actions/time |
 | Agent orchestration: Planner / Verifier / Recovery | 🔧 | Planner: persisted `plan_task` artifact; Verifier: evidence-based pass with persisted verdict; Recovery: plan-aware retries. Remaining: task-level pause/resume mid-run |
 | Agent orchestration: Task Manager (pause, resume, cancel, retry, SQLite persistence) | 🔧 | Cancel/retry/persisted state shipped; mid-run task pause/resume remaining (control sessions already pause/resume) |
@@ -135,8 +136,21 @@ Files: `src/shared/similar.ts` (new), `tools/registry.ts` (`save_memory` gate).
 
 ## Phase 8 — Coding assistant
 
-🔧 Mostly shipped. Remaining: automatic checkpoint creation before multi-file
-patches (currently model-invoked); diff review UX already exists in `ToolTimeline`/`diff.ts`.
+🔧 Complete for the audited gaps. Findings during this pass:
+
+- `write_file` and `apply_patch` **already auto-backup** the previous version
+  (`files.write` returns `backupPath`), so the "automatic checkpoint before
+  patches" gap was narrower than the Phase 1 audit assumed.
+- Added: `rename_entry` now creates an automatic checkpoint of the source file
+  before the move (the only destructive-path operation without a backup);
+  directories are skipped gracefully. `delete_entry` moves to the Recycle Bin
+  and is reversible. Grouped multi-file checkpoints remain model-invoked via
+  `create_checkpoint`.
+- Verification of edits is now enforced by the Phase 6 verifier pass
+  (file-write tools are in the consequential set).
+
+Files: `tools/registry.ts` (`rename_entry`); test
+`tests/unit/renameCheckpoint.test.ts`.
 
 ## Phase 9 — UI polish
 
