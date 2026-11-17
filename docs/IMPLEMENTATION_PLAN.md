@@ -31,7 +31,7 @@ tests and documentation, and no phase is marked complete until its tests pass.
 | Voice: TTS replies, VAD, interruptible speech, hands-free continuous mode | ✅ | `src/shared/speech.ts`, `ChatPage.tsx`, Settings → Voice; wake word deferred (see Phase 5) |
 | Voice: wake word ("Hey IGRIS") | ⏸ | Deferred: Web Speech needs Google's backend (fails `network`), Gemini per-window STT burns free quota, local engines need a vendor AccessKey |
 | Memory store (SQLite, kinds, search, inspect/edit/delete, model recall) | ✅ | `MemoryRepository`, save/search memory tools, prompt block (explicit-save only) |
-| Memory: duplicate detection | ⬜ | Phase 7 |
+| Memory: duplicate detection | ✅ | `findSimilarMemory` (normalize + Jaccard 0.8) gates `save_memory`; near-copies refused with the original id |
 | Coding assistant (scan, tree, read/search/write/patch, rename/delete, checkpoints, run command, run tests, git via terminal) | ✅ | `fileService`, `terminalService`, `registry.ts`, workspace permission gates |
 | Agent orchestration: executor loop, step tracking, limits | ✅ | `chatEngine` loop + `taskService` step records; bounded by turns/actions/time |
 | Agent orchestration: Planner / Verifier / Recovery | 🔧 | Planner: persisted `plan_task` artifact; Verifier: evidence-based pass with persisted verdict; Recovery: plan-aware retries. Remaining: task-level pause/resume mid-run |
@@ -121,9 +121,17 @@ Files: `shared/types.ts`, `shared/defaults.ts`, `storage/database.ts` (v2),
 
 ## Phase 7 — Persistent memory
 
-⬜ Current gaps: duplicate detection on save; memory UI is a settings page list.
-Plan: normalize + fuzzy-dedupe on save (exact + token-overlap check), show
-duplicate warning in the save tool result. Files: `MemoryRepository`, `registry.ts`.
+🔧 Core slice complete. Shipped: duplicate detection on save — `findSimilarMemory`
+in `src/shared/similar.ts` normalizes text and applies a Jaccard token-overlap
+threshold (0.8); the `save_memory` tool refuses near-duplicates and reports the
+existing memory id instead of adding a near-copy. Tested in
+`tests/unit/memoryDedupe.test.ts`.
+
+Remaining: memory inspection/editing currently lives in Settings → Memory
+(existing UI); no additional gaps identified beyond the earlier audit —
+recall, search, inspect/edit/delete, and the 200-item cap were already shipped.
+
+Files: `src/shared/similar.ts` (new), `tools/registry.ts` (`save_memory` gate).
 
 ## Phase 8 — Coding assistant
 

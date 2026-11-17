@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { PermissionKey, Settings, TaskPlan, ToolCategory, ToolImage, ToolInfo, Workspace } from '@shared/types'
 import { PERMISSION_META } from '@shared/defaults'
+import { findSimilarMemory } from '@shared/similar'
 import type { WorkspaceRepository } from '../storage/repositories'
 import type { FileService } from '../services/fileService'
 import type { TerminalService } from '../services/terminalService'
@@ -728,6 +729,13 @@ export function createToolRegistry(deps: ToolDependencies): {
       run: async (args) => {
         if (deps.memories.list().length >= 200) {
           throw new AppError('VALIDATION', 'The memory limit (200) is reached. Delete some memories first.')
+        }
+        const duplicate = findSimilarMemory(args.text, deps.memories.list())
+        if (duplicate) {
+          return {
+            text: `Not saved: this duplicates memory ${duplicate.id} (${Math.round(duplicate.similarity * 100)}% similar): "${duplicate.text.slice(0, 120)}". Tell the user it already exists, or edit/delete the original in Settings → Memory instead of saving again.`,
+            display: `Duplicate memory (${duplicate.id.slice(0, 8)}) not saved`
+          }
         }
         const memory = deps.memories.add(args.text, args.kind ?? 'fact')
         return {

@@ -27,7 +27,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **178 passing**, 1 skipped, 25 files |
+| `npm test` | **186 passing**, 1 skipped, 26 files |
 | `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
@@ -193,6 +193,11 @@ Live provider calls are intentionally not automated because no API key is presen
 
 - `plan_task` records the ordered steps (all `pending`) and risks on the task and reports the count;
 - empty plans, sub-3-character steps, and more than 12 steps are rejected.
+
+### `tests/unit/memoryDedupe.test.ts`
+
+- `findSimilarMemory` catches exact duplicates after case/punctuation/whitespace normalization, catches near-identical rephrasings via token overlap (Jaccard ≥ 0.8), never flags genuinely different text, and reports the most similar entry;
+- the `save_memory` tool refuses duplicates (reports the existing memory id, does not write) and still saves genuinely new text.
 
 ### `tests/unit/geminiSchema.test.ts`
 

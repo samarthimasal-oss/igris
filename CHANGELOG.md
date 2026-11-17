@@ -36,6 +36,10 @@ tested slice. See `docs/IMPLEMENTATION_PLAN.md` for the full phase plan and
   `failed` verdict fails the task instead of reporting success. Retrying a
   failed task resumes from plan progress and the verifier finding. Toggle:
   Settings → AI → "Verify consequential actions" (default on).
+- **Memory duplicate detection (Phase 7 slice).** `save_memory` normalizes text
+  and compares token overlap against the existing store (`src/shared/similar.ts`);
+  a duplicate is refused with the original memory id reported instead of adding
+  a near-copy.
 - In-turn transient retry: up to two extra attempts with 2s/6s backoff for
   retryable provider errors (503 high-demand, brief rate limits, network
   drops), only before any output was streamed.
