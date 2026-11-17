@@ -67,6 +67,17 @@ export class TaskService {
     return step
   }
 
+  savePlan(taskId: string, plan: Task['plan']): void {
+    if (!plan) return
+    this.repo.update(taskId, { plan: JSON.stringify(plan) })
+    this.onChange(taskId)
+  }
+
+  setVerification(taskId: string, verification: NonNullable<Task['verification']>): void {
+    this.repo.update(taskId, { verification: JSON.stringify(verification) })
+    this.onChange(taskId)
+  }
+
   finishStep(stepId: string, status: TaskStep['status'], detail: string | null = null): void {
     this.repo.updateStep(stepId, status, detail)
   }

@@ -28,6 +28,14 @@ tested slice. See `docs/IMPLEMENTATION_PLAN.md` for the full phase plan and
   listening re-arms the microphone between turns when explicitly enabled, with
   a voice-activity gate so silent recordings are never transcribed. Wake word
   ("Hey IGRIS") is deferred with rationale in `docs/STATUS.md`.
+- **Agent orchestration slice (Phase 6).** Multi-action tasks record a plan via
+  `plan_task` (persisted on the task row, rendered in Task Monitor). Tasks that
+  used consequential tools get a bounded verifier pass that judges only the
+  recorded tool evidence; its verdict (`verified`/`failed`/`unverified`) is
+  persisted, shown in Task Monitor, merged per step into the plan, and a
+  `failed` verdict fails the task instead of reporting success. Retrying a
+  failed task resumes from plan progress and the verifier finding. Toggle:
+  Settings → AI → "Verify consequential actions" (default on).
 - In-turn transient retry: up to two extra attempts with 2s/6s backoff for
   retryable provider errors (503 high-demand, brief rate limits, network
   drops), only before any output was streamed.

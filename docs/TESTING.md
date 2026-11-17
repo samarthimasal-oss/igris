@@ -27,7 +27,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **167 passing**, 1 skipped, 23 files |
+| `npm test` | **178 passing**, 1 skipped, 25 files |
 | `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
@@ -178,6 +178,21 @@ Live provider calls are intentionally not automated because no API key is presen
 - `speechScript` reduces an assistant message to speakable prose: fenced code blocks are removed (including unclosed fences), inline code words survive, links keep their label while images and URLs vanish, headings/list/blockquote markers are stripped, bold and italics are flattened, table separator rows vanish, table rows become plain words, and whitespace plus stray punctuation spacing collapse;
 - a code-only message reduces to empty text, which the speaker skips;
 - `hasVoiceActivity` accepts speech-level and quiet-but-audible RMS windows, rejects silence, near-silence, and empty buffers.
+
+### `tests/unit/taskVerification.test.ts`
+
+- a consequential task (control/browser/file/terminal tools) gets a bounded verifier call whose `verified` verdict is persisted and whose per-step verdicts are merged into the persisted plan;
+- a `failed` verdict fails the task with the verifier's evidence in the error;
+- an unparsable verifier reply is recorded as `unverified`, never as success;
+- a verifier transport failure is recorded as `unverified` with the error message;
+- cancellation propagates without recording a verdict;
+- tasks without consequential tools, or with the `ai.verifyActions` setting off, never run the verifier;
+- `parseVerdict` accepts verdict JSON embedded in prose and downgrades unknown statuses, missing evidence, and JSON-free replies to `unverified`.
+
+### `tests/unit/planTool.test.ts`
+
+- `plan_task` records the ordered steps (all `pending`) and risks on the task and reports the count;
+- empty plans, sub-3-character steps, and more than 12 steps are rejected.
 
 ### `tests/unit/geminiSchema.test.ts`
 

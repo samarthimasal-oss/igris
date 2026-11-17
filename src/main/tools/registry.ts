@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { PermissionKey, Settings, ToolCategory, ToolImage, ToolInfo, Workspace } from '@shared/types'
+import type { PermissionKey, Settings, TaskPlan, ToolCategory, ToolImage, ToolInfo, Workspace } from '@shared/types'
 import { PERMISSION_META } from '@shared/defaults'
 import type { WorkspaceRepository } from '../storage/repositories'
 import type { FileService } from '../services/fileService'
@@ -8,6 +8,7 @@ import type { AppService } from '../services/appService'
 import type { ScreenService } from '../services/screenService'
 import type { BrowserService } from '../services/browserService'
 import type { MemoryRepository } from '../storage/repositories'
+import type { TaskService } from '../tasks/taskService'
 import type { Logger } from '../services/logger'
 import type { ControlSessionService } from '../control/sessionService'
 import type { DesktopService, DesktopActionArgs } from '../control/desktopService'
@@ -73,6 +74,7 @@ export interface ToolDependencies {
   desktop: DesktopService
   managedBrowser: ControlBrowserService
   memories: MemoryRepository
+  tasks: TaskService
   settings: () => Settings
   logger: Logger
 }
@@ -750,6 +752,34 @@ export function createToolRegistry(deps: ToolDependencies): {
         return {
           text: JSON.stringify({ memories: items }, null, 2),
           display: `${items.length} saved memories`
+        }
+      }
+    }),
+
+    defineTool({
+      id: 'plan_task',
+      title: 'Record the task plan',
+      description:
+        'Before starting a task that needs several actions, record your ordered steps and any risks. Call it once, with concrete, individually verifiable steps. The plan is shown to the user and used by the verifier and on retries.',
+      category: 'system',
+      risk: 'low',
+      permission: null,
+      requiresConfirmation: false,
+      timeoutMs: 5000,
+      schema: z.object({
+        steps: z.array(z.string().min(3).max(300)).min(1).max(12),
+        risks: z.string().max(500).optional()
+      }),
+      run: async (args, context) => {
+        const plan: TaskPlan = {
+          steps: args.steps.map((title) => ({ title, status: 'pending', evidence: null })),
+          risks: args.risks?.trim() || null,
+          createdAt: new Date().toISOString()
+        }
+        deps.tasks.savePlan(context.taskId, plan)
+        return {
+          text: `Plan recorded with ${plan.steps.length} step${plan.steps.length === 1 ? '' : 's'}. Work through them in order and verify each outcome before moving on.`,
+          display: `Plan recorded: ${plan.steps.length} step${plan.steps.length === 1 ? '' : 's'}`
         }
       }
     }),

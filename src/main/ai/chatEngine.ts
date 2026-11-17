@@ -7,6 +7,8 @@ import type {
   ConfirmationRequest,
   Conversation,
   MessageMeta,
+  Task,
+  TaskVerification,
   ToolCall,
   ToolExecutionRecord
 } from '@shared/types'
@@ -42,6 +44,36 @@ const FALLBACK_CODES: ReadonlySet<ErrorCode> = new Set([
 /** Marks a failed model turn that already delivered output to the user. */
 interface StreamFailureMarker {
   delivered?: boolean
+}
+
+/** Tools whose outcomes change state and therefore require verification. */
+const CONSEQUENTIAL_TOOLS: ReadonlySet<string> = new Set([
+  'write_file',
+  'apply_patch',
+  'create_entry',
+  'rename_entry',
+  'delete_entry',
+  'run_command',
+  'run_tests',
+  'launch_app',
+  'desktop',
+  'browser',
+  'browser_open',
+  'browser_search',
+  'youtube_search'
+])
+
+const VERIFIER_SYSTEM = `You are IGRIS's verifier. You receive the task objective and the recorded actions with their actual results. Judge only from that evidence; never assume.
+Reply with ONLY a JSON object: {"status":"verified"|"failed"|"unverified","evidence":"...","steps":[{"index":1,"status":"completed"|"failed"|"unverified","evidence":"..."}]}
+- "verified": the recorded results demonstrate the objective was achieved.
+- "failed": the results show it failed or was left incomplete.
+- "unverified": the evidence is insufficient to judge.
+Cite concrete recorded results in every evidence field (at most 3 sentences each). Omit "steps" unless the objective had a plan.`
+
+interface VerdictStep {
+  index: number
+  status: 'completed' | 'failed' | 'unverified'
+  evidence: string
 }
 
 export interface ChatDependencies {
@@ -256,7 +288,7 @@ export class ChatEngine {
     if (!prompt) throw new AppError('UNSUPPORTED', 'There is no prompt saved for this task.')
     return this.send({
       conversationId: conversation.id,
-      content: prompt,
+      content: this.recoveryPrompt(task, prompt),
       providerId: input?.providerId,
       model: input?.model,
       workspaceId: input?.workspaceId
@@ -378,6 +410,9 @@ export class ChatEngine {
       ? `Tool calling is enabled. Sensitive tools will pause for user approval.`
       : 'This provider is configured without tool calling, so you cannot inspect files or control the computer in this conversation. Be transparent about that limitation.'
 
+    const planningBlock = `Planning (for objectives that need several actions):
+- Call plan_task once before acting, with concrete ordered steps (2-12) and any risks. Keep each step small enough to verify on its own, and follow the plan; if reality diverges, say so and adjust.`
+
     return `You are IGRIS, a personal AI assistant running as a native Windows desktop application. You combine cloud-model reasoning with controlled local tools. Your visual identity is an obsidian-and-titanium AI core.
 
 Current time: ${new Date().toString()} (${Intl.DateTimeFormat().resolvedOptions().timeZone})
@@ -390,6 +425,8 @@ ${projectBlock}
 ${memoryBlock}
 
 ${toolsNote}
+
+${planningBlock}
 
 Operating rules:
 1. Be direct, accurate and useful. Use Markdown and fenced code when appropriate.
@@ -629,6 +666,8 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
         throw new AppError('PROVIDER', 'The model ended without returning any text.')
       }
 
+      await this.verifyOutcome(active, options)
+
       assistantMessage = this.saveAssistant(active, {
         content: active.assistantText.trim(),
         durationMs: Date.now() - startedAt
@@ -776,6 +815,141 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
       content: input.content,
       meta
     })
+  }
+
+  /**
+   * Verifier pass: for tasks that used consequential tools, one bounded model
+   * call judges the recorded evidence. A "failed" verdict fails the task; an
+   * "unverified" outcome (verifier error, unparsable reply) is recorded but is
+   * never reported as verified success.
+   */
+  private async verifyOutcome(active: ActiveRun, options: StartOptions): Promise<void> {
+    const settings = this.deps.settings.get()
+    const consequential = active.toolExecutions.some((record) =>
+      CONSEQUENTIAL_TOOLS.has(record.name)
+    )
+    if (!consequential || !settings.ai.verifyActions) return
+
+    const stepId = this.deps.tasks.addStep(active.taskId, 'Verifying the outcome').id
+    const records = active.toolExecutions
+      .map((record, index) => {
+        const outcome = record.error
+          ? `error: ${truncate(record.error, 300)}`
+          : `result: ${truncate(record.result ?? '(no output)', 300)}`
+        return `${index + 1}. ${record.name} — ${record.status} — ${outcome}`
+      })
+      .join('\n')
+    const prompt = `Objective: ${truncate(options.userMessage.content, 600)}\n\nRecorded actions and results:\n${records}\n\nJudge only from this evidence.`
+
+    let verdict: { status: TaskVerification['status']; evidence: string; steps?: VerdictStep[] }
+    try {
+      const turn = await this.streamTurnWithFallback(active, {
+        sessionId: active.conversationId,
+        system: VERIFIER_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+        tools: [],
+        temperature: 0,
+        maxOutputTokens: 700,
+        streaming: false
+      })
+      verdict = this.parseVerdict(turn.text)
+    } catch (error) {
+      if (error instanceof AppError && error.code === 'CANCELLED') throw error
+      const failure = normalizeError(error, 'The verifier could not run.')
+      verdict = { status: 'unverified', evidence: truncate(failure.userMessage, 500) }
+    }
+
+    const verification: TaskVerification = {
+      status: verdict.status,
+      evidence: truncate(verdict.evidence, 500),
+      checkedAt: new Date().toISOString()
+    }
+    this.deps.tasks.setVerification(active.taskId, verification)
+    this.mergeVerdictIntoPlan(active.taskId, verdict.steps)
+    this.deps.tasks.finishStep(
+      stepId,
+      verdict.status === 'failed' ? 'failed' : 'completed',
+      `${verdict.status}: ${truncate(verdict.evidence, 120)}`
+    )
+    if (verdict.status === 'failed') {
+      throw new AppError(
+        'PROVIDER',
+        `The verifier could not confirm the outcome: ${truncate(verdict.evidence, 300)}`
+      )
+    }
+  }
+
+  /** Defensively parses the verifier's JSON reply; anything unparsable is unverified. */
+  private parseVerdict(text: string): { status: TaskVerification['status']; evidence: string; steps?: VerdictStep[] } {
+    const match = text.match(/\{[\s\S]*\}/)
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]) as {
+          status?: unknown
+          evidence?: unknown
+          steps?: unknown
+        }
+        const status =
+          parsed.status === 'verified' || parsed.status === 'failed' ? parsed.status : 'unverified'
+        const evidence =
+          typeof parsed.evidence === 'string' && parsed.evidence.trim()
+            ? parsed.evidence.trim()
+            : 'The verifier gave no evidence.'
+        const steps = Array.isArray(parsed.steps)
+          ? parsed.steps.flatMap((entry): VerdictStep[] => {
+              if (!entry || typeof entry !== 'object') return []
+              const item = entry as { index?: unknown; status?: unknown; evidence?: unknown }
+              const index = typeof item.index === 'number' ? Math.round(item.index) : 0
+              if (index < 1) return []
+              const status =
+                item.status === 'completed' || item.status === 'failed' ? item.status : 'unverified'
+              const evidence = typeof item.evidence === 'string' ? truncate(item.evidence, 300) : ''
+              return [{ index, status, evidence }]
+            })
+          : undefined
+        return { status, evidence: truncate(evidence, 500), steps }
+      } catch {
+        // Fall through to unparsable handling.
+      }
+    }
+    return { status: 'unverified', evidence: truncate(text, 300) || 'No verifier output.' }
+  }
+
+  /** Maps 1-based verifier step verdicts onto the persisted plan. */
+  private mergeVerdictIntoPlan(taskId: string, steps?: VerdictStep[]): void {
+    if (!steps?.length) return
+    const plan = this.deps.tasks.get(taskId).plan
+    if (!plan) return
+    for (const verdict of steps) {
+      const planStep = plan.steps[verdict.index - 1]
+      if (!planStep) continue
+      planStep.status = verdict.status
+      planStep.evidence = verdict.evidence || planStep.evidence
+    }
+    this.deps.tasks.savePlan(taskId, plan)
+  }
+
+  /** Retry prompt that resumes from persisted plan progress instead of restarting blindly. */
+  private recoveryPrompt(task: Task, prompt: string): string {
+    const parts = [prompt]
+    if (task.plan?.steps.length) {
+      const lines = task.plan.steps.map((step, index) => {
+        const state = step.status === 'pending' ? 'not done' : step.status
+        const evidence = step.evidence ? ` — evidence: ${truncate(step.evidence, 200)}` : ''
+        return `${index + 1}. ${step.title} (${state}${evidence})`
+      })
+      parts.push(
+        `The previous attempt failed. Recorded plan progress:\n${lines.join(
+          '\n'
+        )}\nDo not repeat steps already completed; resume from the first unfinished step.`
+      )
+    }
+    if (task.verification?.status === 'failed') {
+      parts.push(
+        `Verifier finding from the previous attempt: ${truncate(task.verification.evidence, 400)}`
+      )
+    }
+    return parts.join('\n\n')
   }
 
   private async streamTurn(

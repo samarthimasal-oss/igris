@@ -34,7 +34,8 @@ tests and documentation, and no phase is marked complete until its tests pass.
 | Memory: duplicate detection | ⬜ | Phase 7 |
 | Coding assistant (scan, tree, read/search/write/patch, rename/delete, checkpoints, run command, run tests, git via terminal) | ✅ | `fileService`, `terminalService`, `registry.ts`, workspace permission gates |
 | Agent orchestration: executor loop, step tracking, limits | ✅ | `chatEngine` loop + `taskService` step records; bounded by turns/actions/time |
-| Agent orchestration: dedicated Planner / Verifier / Recovery modules | 🔧 | Planner is prompt-driven; verification is prompt-rule-based; recovery = in-request retry + provider fallback + manual task retry. Dedicated verifier evidence pass is Phase 6 |
+| Agent orchestration: Planner / Verifier / Recovery | 🔧 | Planner: persisted `plan_task` artifact; Verifier: evidence-based pass with persisted verdict; Recovery: plan-aware retries. Remaining: task-level pause/resume mid-run |
+| Agent orchestration: Task Manager (pause, resume, cancel, retry, SQLite persistence) | 🔧 | Cancel/retry/persisted state shipped; mid-run task pause/resume remaining (control sessions already pause/resume) |
 | SQLite persistence (conversations, tasks, providers, memories, logs) | ✅ | `storage/database.ts`, `repositories.ts` |
 | DPAPI-protected keys, redaction, path guard, command policy | ✅ | `security/*` |
 | IPC allowlist validation | ✅ | `ipc.ts` + `shared/ipc.ts` contract |
@@ -90,12 +91,33 @@ Files: `src/shared/speech.ts` (new), `ChatPage.tsx`, `SettingsPage.tsx`,
 
 ## Phase 6 — Agent orchestration
 
-⬜ Current. Plan:
+🔧 Core slice complete. Shipped:
 
-1. Extract the executor loop's planning prompt into a structured plan artifact persisted on the task row (steps with status).
-2. Add a verifier step: after control/tool actions flagged as consequential, require a fresh observation (screenshot, element state, file read) before the run may declare success; the model must cite the evidence.
-3. Recovery: on replan, mark completed steps and resume from the failed step instead of restarting the task.
-4. Files: `chatEngine.ts`, `taskService.ts`, `shared/types.ts`, `ToolTimeline.tsx`.
+1. Planner artifact: the `plan_task` tool records ordered steps (1–12) and
+   risks on the task row (`tasks.plan` JSON column, schema migration v2);
+   system-prompt rules tell the model to call it before multi-action work;
+   steps render in Task Monitor.
+2. Verifier: after any task that used consequential tools, one bounded model
+   call (`verifyOutcome`) receives the objective + recorded tool results and
+   must return JSON `{status: verified|failed|unverified, evidence, steps[]}`.
+   `failed` fails the task (never a silent false success); verifier errors or
+   unparsable replies persist `unverified`; verdict + evidence persist on the
+   task and render in Task Monitor; per-step verdicts merge into the plan.
+   Settings → AI → "Verify consequential actions" (default on).
+3. Recovery: retrying a failed task builds a recovery prompt from the
+   persisted plan progress (statuses + evidence) and the verifier finding, so
+   the executor resumes from the first unfinished step instead of restarting.
+
+Remaining for full Phase 6: task-level pause/resume mid-run (control sessions
+already support pause/resume; the chat executor currently supports
+cancel/retry only).
+
+Files: `shared/types.ts`, `shared/defaults.ts`, `storage/database.ts` (v2),
+`storage/repositories.ts`, `tasks/taskService.ts`, `tools/registry.ts`
+(`plan_task`), `ai/chatEngine.ts` (planner block, verifier, recovery),
+`SettingsPage.tsx`, `ActivityPage.tsx`, `styles.css`; tests
+`tests/unit/taskVerification.test.ts`, `tests/unit/planTool.test.ts`,
+`tests/integration/database.test.ts`.
 
 ## Phase 7 — Persistent memory
 

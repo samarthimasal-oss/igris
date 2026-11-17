@@ -685,6 +685,12 @@ export function SettingsPage() {
                 description="When the active provider keeps failing, retry the turn with your other configured providers."
               />
               <Toggle
+                checked={settings.ai.verifyActions}
+                onChange={(value) => void apply({ ai: { verifyActions: value } })}
+                label="Verify consequential actions"
+                description="After a task that changed files, apps, or the desktop, one bounded verifier call judges the recorded evidence before the task can complete. Adds a single model call per such task."
+              />
+              <Toggle
                 checked={settings.ai.confirmSensitiveActions}
                 onChange={(value) => void apply({ ai: { confirmSensitiveActions: value } })}
                 label="Confirm sensitive actions"

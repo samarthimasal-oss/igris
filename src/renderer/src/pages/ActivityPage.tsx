@@ -387,10 +387,41 @@ export function ActivityPage() {
                     {detail.task.error}
                   </div>
                 ) : null}
+                {detail.task.verification ? (
+                  <div className={`task-verification is-${detail.task.verification.status}`}>
+                    <ShieldAlert size={14} />
+                    <span>
+                      <strong>Verifier: {detail.task.verification.status}</strong> —{' '}
+                      {detail.task.verification.evidence}
+                    </span>
+                  </div>
+                ) : null}
                 {detail.task.result ? (
                   <div className="task-result">
                     <span>Result</span>
                     <p>{detail.task.result}</p>
+                  </div>
+                ) : null}
+                {detail.task.plan ? (
+                  <div className="task-section">
+                    <div className="task-section-head">
+                      <h3>Plan</h3>
+                      <Badge tone="neutral">{detail.task.plan.steps.length}</Badge>
+                    </div>
+                    <div className="step-timeline">
+                      {detail.task.plan.steps.map((step, index) => (
+                        <div key={index} className="step-row">
+                          <span className={clsx('step-marker', `is-${step.status}`)}>{index + 1}</span>
+                          <div className="step-copy">
+                            <span>{step.title}</span>
+                            {step.evidence ? <em className="plan-evidence">{step.evidence}</em> : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {detail.task.plan.risks ? (
+                      <p className="plan-risks">Risks: {detail.task.plan.risks}</p>
+                    ) : null}
                   </div>
                 ) : null}
 

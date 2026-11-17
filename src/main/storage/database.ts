@@ -23,8 +23,8 @@ export class Database {
       (this.raw.prepare('PRAGMA user_version').get() as { user_version?: number } | undefined)
         ?.user_version ?? 0
     )
-    if (version >= 1) return
 
+    if (version < 1) {
     this.raw.exec(`
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
@@ -76,7 +76,9 @@ export class Database {
         conversation_id TEXT,
         run_id TEXT,
         input TEXT,
-        cancel_requested INTEGER NOT NULL DEFAULT 0
+        cancel_requested INTEGER NOT NULL DEFAULT 0,
+        plan TEXT,
+        verification TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at DESC);
 
@@ -132,6 +134,20 @@ export class Database {
     `)
 
     this.raw.exec('PRAGMA user_version = 1;')
+    }
+
+    // v2: persisted plan artifact and verifier verdict on tasks. The column
+    // check keeps this safe for both fresh installs (columns already exist)
+    // and upgraded databases.
+    if (version < 2) {
+      const columns = this.raw.prepare('PRAGMA table_info(tasks)').all() as Array<{ name?: string }>
+      const names = new Set(columns.map((column) => column.name))
+      if (!names.has('plan')) this.raw.exec('ALTER TABLE tasks ADD COLUMN plan TEXT;')
+      if (!names.has('verification')) {
+        this.raw.exec('ALTER TABLE tasks ADD COLUMN verification TEXT;')
+      }
+      this.raw.exec('PRAGMA user_version = 2;')
+    }
   }
 
   close(): void {

@@ -13,8 +13,10 @@ import type {
   ProviderTestResult,
   Task,
   TaskDetail,
+  TaskPlan,
   TaskStatus,
   TaskStep,
+  TaskVerification,
   ToolRun,
   Workspace
 } from '@shared/types'
@@ -412,7 +414,9 @@ export class TaskRepository {
       error: null,
       result: null,
       conversationId: input.conversationId ?? null,
-      runId: input.runId ?? null
+      runId: input.runId ?? null,
+      plan: null,
+      verification: null
     }
     this.db.raw
       .prepare(
@@ -442,6 +446,8 @@ export class TaskRepository {
       result: string | null
       runId: string | null
       cancelRequested: boolean
+      plan: string | null
+      verification: string | null
     }>
   ): void {
     const sets: string[] = []
@@ -453,7 +459,9 @@ export class TaskRepository {
       ['error', 'error'],
       ['result', 'result'],
       ['runId', 'run_id'],
-      ['cancelRequested', 'cancel_requested']
+      ['cancelRequested', 'cancel_requested'],
+      ['plan', 'plan'],
+      ['verification', 'verification']
     ]
     for (const [key, column] of map) {
       if (patch[key] === undefined) continue
@@ -631,7 +639,32 @@ export class TaskRepository {
   }
 }
 
+function isTaskPlan(value: unknown): value is TaskPlan {
+  if (!value || typeof value !== 'object') return false
+  const plan = value as Partial<TaskPlan>
+  return (
+    Array.isArray(plan.steps) &&
+    plan.steps.every(
+      (step) =>
+        step &&
+        typeof step.title === 'string' &&
+        (step.status === 'pending' || step.status === 'completed' || step.status === 'failed' || step.status === 'unverified')
+    )
+  )
+}
+
+function isTaskVerification(value: unknown): value is TaskVerification {
+  if (!value || typeof value !== 'object') return false
+  const verification = value as Partial<TaskVerification>
+  return (
+    (verification.status === 'verified' || verification.status === 'unverified' || verification.status === 'failed') &&
+    typeof verification.evidence === 'string'
+  )
+}
+
 function mapTask(row: Row): Task {
+  const plan = parseJson<unknown>(row.plan, null)
+  const verification = parseJson<unknown>(row.verification, null)
   return {
     id: str(row, 'id'),
     title: str(row, 'title'),
@@ -643,7 +676,9 @@ function mapTask(row: Row): Task {
     error: nullableStr(row, 'error'),
     result: nullableStr(row, 'result'),
     conversationId: nullableStr(row, 'conversation_id'),
-    runId: nullableStr(row, 'run_id')
+    runId: nullableStr(row, 'run_id'),
+    plan: isTaskPlan(plan) ? plan : null,
+    verification: isTaskVerification(verification) ? verification : null
   }
 }
 

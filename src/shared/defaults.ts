@@ -39,7 +39,8 @@ export const DEFAULT_SETTINGS: Settings = {
     streaming: true,
     systemInstructions: '',
     confirmSensitiveActions: true,
-    autoFallback: true
+    autoFallback: true,
+    verifyActions: true
   },
   voice: {
     ttsEnabled: false,

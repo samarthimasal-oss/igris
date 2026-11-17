@@ -279,6 +279,7 @@ async function boot(): Promise<void> {
     desktop: desktopControlService,
     managedBrowser: browserControlService,
     memories: memoryRepo,
+    tasks,
     settings: () => settings.get(),
     logger: appLogger
   })

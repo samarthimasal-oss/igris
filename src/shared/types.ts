@@ -51,6 +51,7 @@ export interface AiSettings {
   systemInstructions: string
   confirmSensitiveActions: boolean
   autoFallback: boolean
+  verifyActions: boolean
 }
 
 export interface VoiceSettings {
@@ -302,6 +303,26 @@ export interface Task {
   result: string | null
   conversationId: string | null
   runId: string | null
+  plan: TaskPlan | null
+  verification: TaskVerification | null
+}
+
+export interface TaskPlanStep {
+  title: string
+  status: 'pending' | 'completed' | 'failed' | 'unverified'
+  evidence: string | null
+}
+
+export interface TaskPlan {
+  steps: TaskPlanStep[]
+  risks: string | null
+  createdAt: string
+}
+
+export interface TaskVerification {
+  status: 'verified' | 'unverified' | 'failed'
+  evidence: string
+  checkedAt: string
 }
 
 export interface TaskStep {
