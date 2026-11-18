@@ -118,6 +118,7 @@ Desktop control is a separate, task-scoped capability. It is never enabled impli
 - Scope is enforced in the main process: a desktop-only session cannot use the managed browser, and a browser-only session cannot use the desktop.
 - `Ctrl+Alt+Shift+X` stops control globally. The shortcut is registered only while a session is active. The HUD and the Home control strip expose Pause, Resume, and Stop.
 - Stop cancels the run, ends the session, hides the HUD, releases held keys and mouse buttons, and closes the managed browser.
+- A handoff (CAPTCHA, one-time code, MFA, sign-in) pauses the session through the same gate. The tool result tells the model to wait; the run blocks until the user presses Resume, or ends if the user stops control, the session expires, the run is cancelled, or the app shuts down. The run clock is paused while the user works.
 - Every `desktop` and `browser` call is recorded as a tool run with its arguments, result, timing, and approval state.
 
 ### Hard blocks (never allowed, no prompt)

@@ -27,7 +27,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **193 passing**, 1 skipped, 28 files |
+| `npm test` | **199 passing**, 1 skipped, 29 files |
 | `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
@@ -211,6 +211,14 @@ Live provider calls are intentionally not automated because no API key is presen
 - a paused run blocks at its checkpoint (no further status changes) and, once released, records `paused → running` with "Paused/Resumed by the user" steps and emits the matching chat status events;
 - cancelling a paused run through the abort signal rejects with a cancellation and clears the pause marker;
 - a persisted cancel request without an abort is honoured (the controller is aborted).
+
+### `tests/unit/browserHandoff.test.ts`
+
+- a handoff pauses the task's control session, carries the supplied reason into the guidance, and falls back to a default reason;
+- the `browser` tool schema exposes the `handoff` action and a bounded `reason` field;
+- the executor gate holds a run while the session is paused, records a "Waiting for the user" step, then continues once resumed and re-arms the run deadline;
+- a stopped or ended session ends the wait with "do not call tools" guidance;
+- abort and persisted cancel requests release the gate (the latter aborts the controller).
 
 ### `tests/unit/geminiSchema.test.ts`
 

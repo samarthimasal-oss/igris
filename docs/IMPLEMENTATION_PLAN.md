@@ -26,7 +26,7 @@ tests and documentation, and no phase is marked complete until its tests pass.
 | Three tools: `request_computer_control`, `desktop`, `browser` | ✅ | `tools/registry.ts` |
 | Browser automation (managed Edge profile, refs, tabs, forms, verification) | ✅ | `control/browserService.ts`; Chrome fallback; downloads blocked; personal profile isolated |
 | Browser downloads with approval | 🔧 | Downloads are currently hard-blocked (`acceptDownloads: false`); an approval-gated path is a possible later add |
-| CAPTCHA/MFA human handoff | 🔧 | Blocklist + "stop and explain" prompt rules; no dedicated handoff UX yet |
+| CAPTCHA/MFA human handoff | ✅ | `browser` action `handoff` with a reason pauses the control session and holds the run until the user resumes; Stop, expiry, cancel, and shutdown end the wait |
 | Voice: push-to-talk STT | ✅ | Mic capture in `ChatPage` → `voice.transcribe` (Gemini inline audio) |
 | Voice: TTS replies, VAD, interruptible speech, hands-free continuous mode | ✅ | `src/shared/speech.ts`, `ChatPage.tsx`, Settings → Voice; wake word deferred (see Phase 5) |
 | Voice: wake word ("Hey IGRIS") | ⏸ | Deferred: Web Speech needs Google's backend (fails `network`), Gemini per-window STT burns free quota, local engines need a vendor AccessKey |

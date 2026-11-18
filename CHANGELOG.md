@@ -52,6 +52,12 @@ tested slice. See `docs/IMPLEMENTATION_PLAN.md` for the full phase plan and
   (between turns and between tool calls), the task persists as `paused`, and
   resume/cancel/shutdown all release it cleanly. Completes the Task Manager
   requirement (`tests/unit/taskPause.test.ts`).
+- **CAPTCHA/MFA handoff.** When a page needs a CAPTCHA, one-time code, MFA
+  approval, or sign-in, the model calls `browser` with action `handoff` instead
+  of guessing. The control session pauses, the run waits (with its clock
+  paused) until the user presses Resume, and then the model re-observes the
+  page. Stop, expiry, cancel, and shutdown all end the wait. No new
+  permissions (`tests/unit/browserHandoff.test.ts`).
 - **Final security audit + rebuild (Phase 10).** Permissions/IPC re-audit
   clean for all new slices (verifier has no tools; fallback only retries the
   user's own providers; dedupe is local; rename checkpoints stay in the backup

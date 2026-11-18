@@ -35,6 +35,7 @@ export interface BrowserActionArgs {
   amount?: number
   tab?: number
   waitMs?: number
+  reason?: string
 }
 
 interface SnapshotElement {
@@ -287,6 +288,7 @@ export class BrowserService {
 
     const action = String(args.action ?? '')
     if (action === 'state' || action === 'tabs') return this.state()
+    if (action === 'handoff') return this.handoff(ctx.taskId, args)
     if (action === 'stop') {
       await this.stop()
       return { text: 'Managed browser closed.' }
@@ -339,7 +341,30 @@ export class BrowserService {
     if (args.action === 'click') return `Click ${args.ref ?? args.selector ?? args.name ?? 'element'}`
     if (args.action === 'type') return `Type into ${args.ref ?? args.selector ?? args.name ?? 'page'}`
     if (args.action === 'press') return `Press ${args.key ?? ''}`
+    if (args.action === 'handoff') return 'Hand off to the user'
     return `Browser ${args.action}`
+  }
+
+  /**
+   * Hands the browser back to the user for a step only they can perform
+   * (CAPTCHA, one-time code, MFA prompt, sign-in). The session pauses, so
+   * further browser and desktop calls are refused until the user resumes.
+   */
+  private handoff(
+    taskId: string,
+    args: BrowserActionArgs
+  ): { text: string; display?: string } {
+    const reason = (args.reason ?? '').trim() || 'The page needs a step only the user can complete.'
+    const paused = this.deps.sessions.pause(taskId)
+    return {
+      text: [
+        `Handoff: ${reason}`,
+        paused
+          ? "The control session is paused and the browser is now under the user's control. This is not an error: wait while the user completes the step. The run resumes when they press Resume in the control bar, or ends if they press Stop."
+          : 'No control session was active, so nothing was paused. Ask the user to complete the step themselves.'
+      ].join(' '),
+      display: 'Waiting for the user (handoff)'
+    }
   }
 
   private async ensureBrowser(): Promise<void> {

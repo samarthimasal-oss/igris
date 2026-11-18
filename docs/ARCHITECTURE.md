@@ -108,7 +108,7 @@ Runs have an `AbortController`, a global deadline, cancellation on app shutdown,
 
 `src/main/tools/registry.ts` defines 25 tools with Zod argument schemas, human titles, categories, risk levels, permission keys, confirmation flags, timeouts, and handlers. Handlers receive resolved services and a signal.
 
-The three control tools are `request_computer_control`, `desktop`, and `browser`. `request_computer_control` always prompts and creates a task-scoped session. `desktop` and `browser` require that session and its scope, and pass a per-action confirmation callback for close-window, shell-typing, first-launch, and checkout/send gates.
+The three control tools are `request_computer_control`, `desktop`, and `browser`. `request_computer_control` always prompts and creates a task-scoped session. `desktop` and `browser` require that session and its scope, and pass a per-action confirmation callback for close-window, shell-typing, first-launch, and checkout/send gates. `browser` also has a `handoff` action for CAPTCHA, one-time code, MFA, and sign-in steps: it pauses the session and the executor holds the run until Resume (the run clock is paused), then continues; Stop, expiry, cancel, and shutdown end the wait.
 
 `src/main/tools/toolRuntime.ts` is the gatekeeper:
 
