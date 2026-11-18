@@ -26,7 +26,7 @@
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
 | Windows 10/11 packaging | Complete | NSIS installer built at `release/IGRIS-1.0.0-x64-Setup.exe` |
-| Tests | Complete | 188 unit/integration (1 skipped) + 10 Electron E2E passing |
+| Tests | Complete | 193 unit/integration (1 skipped) + 10 Electron E2E passing |
 | Documentation | Complete | README + architecture, security, testing, status docs |
 | Secrets excluded from git | Complete | `.gitignore`; no keys or `.env` files in the tree |
 
@@ -34,7 +34,7 @@
 
 ```text
 npm run typecheck   PASS
-npm test            27 files, 188 passed, 1 skipped
+npm test            28 files, 193 passed, 1 skipped
 npm run test:e2e    9 tests PASS
 npm run test:packaged PASS (packaged IGRIS.exe, operator asset, HUD)
 npm run pack        PASS -> release/win-unpacked/IGRIS.exe
@@ -60,6 +60,8 @@ Voice output runs entirely in the renderer on Windows `speechSynthesis` voices (
 Wake word ("Hey IGRIS") is intentionally deferred: the Chromium SpeechRecognition API in this Electron build fails with `network` (no Google speech backend), per-window Gemini transcription would burn the free daily quota, and a local engine (e.g. Porcupine) requires a vendor AccessKey. Push-to-talk plus optional hands-free mode is the supported voice path; revisit wake word if a local engine is acceptable later.
 
 Agent orchestration (Phase 6 slice): multi-action tasks record a plan via the `plan_task` tool (persisted on the task row, shown in Task Monitor). After any task that used consequential tools (desktop, browser, file writes, terminal, app launches), one bounded verifier call judges only the recorded tool evidence and replies with a JSON verdict — `verified`, `failed`, or `unverified` — persisted on the task and shown in Task Monitor. A `failed` verdict fails the task instead of reporting success; verifier infrastructure failures are recorded as `unverified`, never as verified success. Per-step verdicts are merged back into the plan. Retrying a failed task now resumes from plan progress (completed steps with evidence, verifier finding) instead of restarting blindly. The verifier is on by default and can be turned off in Settings → AI ("Verify consequential actions"); it adds one model call per consequential task (`tests/unit/taskVerification.test.ts`, `tests/unit/planTool.test.ts`).
+
+Running tasks can now be paused mid-run, completing the Task Manager requirement. A pause blocks the executor at the next checkpoint — between model turns and between tool calls, never mid-action — and persists the task as `paused` (Task Monitor shows Pause/Resume and the chat composer swaps Stop-adjacent Pause for Resume). Cancel, the global stop, and app shutdown all release a paused run; a paused task interrupted by a crash is reaped as failed on startup (`tests/unit/taskPause.test.ts`).
 
 Memory saves are now duplicate-guarded: `save_memory` normalizes text (case, punctuation, whitespace) and compares token overlap (Jaccard ≥ 0.8) against the existing store; a duplicate is refused with the existing memory id reported, instead of silently adding another near-copy (`src/shared/similar.ts`, `tests/unit/memoryDedupe.test.ts`).
 
@@ -130,6 +132,7 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Con
 - [x] Added an automatic recovery checkpoint before renames; writes and patches already auto-backup (Phase 8 slice).
 - [x] Swept every UI control for dead buttons and verified hover/focus/HUD state mapping; added an E2E check for the Phase 5/6 settings controls (Phase 9 slice).
 - [x] Re-ran the IPC/security audit for the new slices, refreshed SECURITY.md, and rebuilt the installer with a fresh checksum (Phase 10).
+- [x] Added task-level pause/resume mid-run: a pause blocks the executor at the next checkpoint, persists the task as `paused`, and resume/cancel/shutdown all release it (completes the Task Manager requirement).
 
 - **Initial release commit:** `c315cd7a09641a33d0337214c607a12f9b32e447`
 - **Remote:** `https://github.com/samarthimasal-oss/igris`

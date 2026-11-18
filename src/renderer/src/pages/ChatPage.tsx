@@ -12,7 +12,9 @@ import {
   Copy,
   Edit3,
   Mic,
+  Pause,
   Pencil,
+  Play,
   RotateCcw,
   SendHorizontal,
   Sparkles,
@@ -204,11 +206,13 @@ function LiveRun({ run }: { run: ActiveRun }) {
           ? 'Working'
           : run.status === 'streaming'
             ? 'Writing'
-            : run.status === 'failed'
-              ? 'Failed'
-              : run.status === 'cancelled'
-                ? 'Stopped'
-                : 'Complete'
+            : run.status === 'paused'
+              ? 'Paused'
+              : run.status === 'failed'
+                ? 'Failed'
+                : run.status === 'cancelled'
+                  ? 'Stopped'
+                  : 'Complete'
 
   return (
     <article className="message message-assistant is-live">
@@ -270,6 +274,8 @@ export function ChatPage() {
   const newConversation = useAppStore((state) => state.newConversation)
   const sendMessage = useAppStore((state) => state.sendMessage)
   const cancelRun = useAppStore((state) => state.cancelRun)
+  const pauseTask = useAppStore((state) => state.pauseTask)
+  const resumeTask = useAppStore((state) => state.resumeTask)
   const regenerate = useAppStore((state) => state.regenerate)
   const editAndResend = useAppStore((state) => state.editAndResend)
   const renameConversation = useAppStore((state) => state.renameConversation)
@@ -785,14 +791,34 @@ export function ChatPage() {
                   {listening ? <Square size={12} /> : <Mic size={13} />}
                 </IconButton>
                 {latestActiveRun ? (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    icon={<Square size={12} />}
-                    onClick={() => void cancelRun(latestActiveRun.runId)}
-                  >
-                    Stop
-                  </Button>
+                  <>
+                    {latestActiveRun.status === 'paused' ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={<Play size={12} />}
+                        onClick={() => void resumeTask(latestActiveRun.taskId)}
+                      >
+                        Resume
+                      </Button>
+                    ) : (
+                      <IconButton
+                        label="Pause at the next checkpoint"
+                        size="sm"
+                        onClick={() => void pauseTask(latestActiveRun.taskId)}
+                      >
+                        <Pause size={13} />
+                      </IconButton>
+                    )}
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      icon={<Square size={12} />}
+                      onClick={() => void cancelRun(latestActiveRun.runId)}
+                    >
+                      Stop
+                    </Button>
+                  </>
                 ) : (
                   <Button
                     variant="primary"

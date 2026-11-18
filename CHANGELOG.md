@@ -47,6 +47,11 @@ tested slice. See `docs/IMPLEMENTATION_PLAN.md` for the full phase plan and
   wired to real state/IPC/navigation; hover and `:focus-visible` coverage
   confirmed; HUD state mapping E2E-verified; new E2E check covers the Phase 5/6
   settings controls (10 Electron smoke tests passing).
+- **Task pause/resume mid-run.** Running tasks can be paused from the Task
+  Monitor or the chat composer; the executor blocks at its next checkpoint
+  (between turns and between tool calls), the task persists as `paused`, and
+  resume/cancel/shutdown all release it cleanly. Completes the Task Manager
+  requirement (`tests/unit/taskPause.test.ts`).
 - **Final security audit + rebuild (Phase 10).** Permissions/IPC re-audit
   clean for all new slices (verifier has no tools; fallback only retries the
   user's own providers; dedupe is local; rename checkpoints stay in the backup

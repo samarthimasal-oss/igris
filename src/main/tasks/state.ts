@@ -7,7 +7,8 @@ const ALLOWED: Record<TaskStatus, TaskStatus[]> = {
   queued: ['planning', 'running', 'failed', 'cancelled'],
   planning: ['running', 'awaiting_confirmation', 'failed', 'cancelled'],
   awaiting_confirmation: ['running', 'failed', 'cancelled'],
-  running: ['awaiting_confirmation', 'completed', 'failed', 'cancelled'],
+  running: ['awaiting_confirmation', 'paused', 'completed', 'failed', 'cancelled'],
+  paused: ['running', 'failed', 'cancelled'],
   completed: [],
   failed: [],
   cancelled: []

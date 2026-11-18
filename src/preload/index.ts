@@ -143,6 +143,8 @@ const bridge: IgrisBridge = {
       invoke('tasks.list', options === undefined ? undefined : options),
     get: (id: string) => invoke('tasks.get', { id }),
     cancel: (id: string) => invoke('tasks.cancel', { id }),
+    pause: (id: string) => invoke('tasks.pause', { id }),
+    resume: (id: string) => invoke('tasks.resume', { id }),
     retry: (id: string) => invoke('tasks.retry', { id }),
     onEvent: (listener: (event: TaskEvent) => void) => subscribe(IPC_TASK_EVENT, listener)
   },

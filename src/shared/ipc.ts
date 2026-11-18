@@ -86,6 +86,8 @@ export interface IpcContract {
   }
   'tasks.get': { input: { id: string }; output: TaskDetail }
   'tasks.cancel': { input: { id: string }; output: OkResult }
+  'tasks.pause': { input: { id: string }; output: OkResult }
+  'tasks.resume': { input: { id: string }; output: OkResult }
   'tasks.retry': { input: { id: string }; output: ChatHandle }
 
   'projects.list': { input: void; output: Workspace[] }
@@ -219,6 +221,8 @@ export interface IgrisBridge {
     list: (options?: { limit?: number; status?: string }) => Promise<Task[]>
     get: (id: string) => Promise<TaskDetail>
     cancel: (id: string) => Promise<OkResult>
+    pause: (id: string) => Promise<OkResult>
+    resume: (id: string) => Promise<OkResult>
     retry: (id: string) => Promise<ChatHandle>
     onEvent: (listener: (event: TaskEvent) => void) => () => void
   }

@@ -609,7 +609,7 @@ export class TaskRepository {
   pendingCount(): number {
     const row = this.db.raw
       .prepare(
-        "SELECT COUNT(*) AS n FROM tasks WHERE status IN ('queued','planning','awaiting_confirmation','running')"
+        "SELECT COUNT(*) AS n FROM tasks WHERE status IN ('queued','planning','awaiting_confirmation','running','paused')"
       )
       .get() as Row
     return num(row, 'n')
@@ -620,7 +620,7 @@ export class TaskRepository {
     this.db.raw
       .prepare(
         `UPDATE tasks SET status = 'failed', finished_at = ?, error = COALESCE(error, 'Interrupted when IGRIS closed.')
-         WHERE status IN ('queued','planning','awaiting_confirmation','running')`
+         WHERE status IN ('queued','planning','awaiting_confirmation','running','paused')`
       )
       .run(now)
   }

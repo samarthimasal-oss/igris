@@ -262,7 +262,7 @@ export type ChatEvent =
       providerName: string
       model: string
     }
-  | { type: 'status'; runId: string; status: 'thinking' | 'working' | 'streaming'; detail?: string }
+  | { type: 'status'; runId: string; status: 'thinking' | 'working' | 'streaming' | 'paused'; detail?: string }
   | { type: 'delta'; runId: string; text: string }
   | { type: 'tool'; runId: string; tool: ToolEventPayload }
   | { type: 'confirmation'; runId: string; request: ConfirmationRequest }
@@ -287,6 +287,7 @@ export type TaskStatus =
   | 'planning'
   | 'awaiting_confirmation'
   | 'running'
+  | 'paused'
   | 'completed'
   | 'failed'
   | 'cancelled'

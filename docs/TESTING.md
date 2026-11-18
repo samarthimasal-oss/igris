@@ -27,7 +27,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **188 passing**, 1 skipped, 27 files |
+| `npm test` | **193 passing**, 1 skipped, 28 files |
 | `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
@@ -203,6 +203,14 @@ Live provider calls are intentionally not automated because no API key is presen
 
 - `rename_entry` checkpoints the source file before the rename and reports the backup location;
 - when the item cannot be checkpointed (e.g. a directory), the rename still proceeds and no checkpoint is reported.
+
+### `tests/unit/taskPause.test.ts`
+
+- `pauseTask` only accepts tasks with an active run and `resumeTask` is one-shot;
+- the pause gate is a no-op when nothing was requested;
+- a paused run blocks at its checkpoint (no further status changes) and, once released, records `paused → running` with "Paused/Resumed by the user" steps and emits the matching chat status events;
+- cancelling a paused run through the abort signal rejects with a cancellation and clears the pause marker;
+- a persisted cancel request without an abort is honoured (the controller is aborted).
 
 ### `tests/unit/geminiSchema.test.ts`
 

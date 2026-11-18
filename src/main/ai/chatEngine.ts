@@ -155,6 +155,8 @@ export class ChatEngine {
   private readonly runs = new Map<string, ActiveRun>()
   private readonly runsByTask = new Map<string, string>()
   private readonly runsByConversation = new Map<string, string>()
+  /** Task ids whose active run should block at the next checkpoint. */
+  private readonly pausedTasks = new Set<string>()
 
   constructor(private readonly deps: ChatDependencies) {}
 
@@ -521,6 +523,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
           active.controller.abort()
           throw new AppError('CANCELLED', 'The task was cancelled.')
         }
+        await this.pauseGate(active)
         const controlSession = this.deps.control.getForTask(active.taskId)
         iterationLimit = controlSession
           ? Math.max(settings.ai.maxToolIterations, controlSession.maxTurns)
@@ -574,6 +577,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
           if (active.controller.signal.aborted) {
             throw new AppError('CANCELLED', 'The task was cancelled.')
           }
+          await this.pauseGate(active)
           const tool = this.deps.tools.get(call.name)
           const title = tool?.title ?? call.name
           const duplicate = active.toolCallsSeen.has(call.id)
@@ -791,6 +795,7 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
       this.runs.delete(active.runId)
       this.runsByTask.delete(active.taskId)
       this.runsByConversation.delete(active.conversationId)
+      this.pausedTasks.delete(active.taskId)
     }
   }
 
@@ -1171,6 +1176,50 @@ ${custom ? `Additional user instructions (secondary to the safety rules above):\
     if (['completed', 'failed', 'cancelled'].includes(task.status)) return false
     this.deps.tasks.setStatus(taskId, 'cancelled', { error: 'Cancelled.' })
     return true
+  }
+
+  /** Requests a pause; the run blocks at its next checkpoint (never mid-tool-call). */
+  pauseTask(taskId: string): boolean {
+    if (!this.runsByTask.has(taskId)) return false
+    this.pausedTasks.add(taskId)
+    return true
+  }
+
+  /** Releases a paused run; false when the task was not paused. */
+  resumeTask(taskId: string): boolean {
+    return this.pausedTasks.delete(taskId)
+  }
+
+  /** Blocks a paused run between checkpoints; cancel and shutdown abort it cleanly. */
+  private async pauseGate(active: ActiveRun): Promise<void> {
+    if (!this.pausedTasks.has(active.taskId)) return
+    this.deps.tasks.setStatus(active.taskId, 'paused')
+    this.deps.tasks.addStep(active.taskId, 'Paused by the user')
+    this.emit({
+      type: 'status',
+      runId: active.runId,
+      status: 'paused',
+      detail: 'Paused by the user'
+    })
+    try {
+      while (this.pausedTasks.has(active.taskId)) {
+        if (active.controller.signal.aborted) {
+          throw new AppError('CANCELLED', 'The task was cancelled.')
+        }
+        if (this.deps.tasks.isCancelRequested(active.taskId)) {
+          active.abortReason = 'user'
+          active.controller.abort()
+          throw new AppError('CANCELLED', 'The task was cancelled.')
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 250))
+      }
+    } finally {
+      // Clear the marker on any exit so a later retry cannot inherit it.
+      this.pausedTasks.delete(active.taskId)
+    }
+    this.deps.tasks.setStatus(active.taskId, 'running')
+    this.deps.tasks.addStep(active.taskId, 'Resumed by the user')
+    this.emit({ type: 'status', runId: active.runId, status: 'thinking', detail: 'Resumed' })
   }
 
   cancelAll(reason: 'shutdown' = 'shutdown'): void {

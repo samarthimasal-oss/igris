@@ -217,8 +217,10 @@ describe('TaskRepository', () => {
   it('marks interrupted work as failed and honours cancellation flags', () => {
     const active = tasks.create({ title: 'Long job', kind: 'chat' })
     const queued = tasks.create({ title: 'Queued job', kind: 'chat' })
+    const paused = tasks.create({ title: 'Paused job', kind: 'chat' })
     tasks.update(active.id, { status: 'running', startedAt: new Date().toISOString() })
-    expect(tasks.pendingCount()).toBe(2)
+    tasks.update(paused.id, { status: 'paused', startedAt: new Date().toISOString() })
+    expect(tasks.pendingCount()).toBe(3)
 
     tasks.requestCancel(active.id)
     expect(tasks.isCancelRequested(active.id)).toBe(true)
@@ -230,6 +232,7 @@ describe('TaskRepository', () => {
       error: 'Interrupted when IGRIS closed.'
     })
     expect(tasks.get(queued.id)?.status).toBe('failed')
+    expect(tasks.get(paused.id)?.status).toBe('failed')
     expect(tasks.pendingCount()).toBe(0)
   })
 

@@ -100,6 +100,8 @@ function statusLabel(run: ActiveRun | RunSnapshot): string {
       return 'WORKING'
     case 'streaming':
       return 'STREAMING'
+    case 'paused':
+      return 'PAUSED'
     case 'failed':
       return 'FAILED'
     case 'cancelled':

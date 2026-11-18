@@ -35,8 +35,8 @@ tests and documentation, and no phase is marked complete until its tests pass.
 | Coding assistant (scan, tree, read/search/write/patch, rename/delete, checkpoints, run command, run tests, git via terminal) | ✅ | `fileService`, `terminalService`, `registry.ts`, workspace permission gates |
 | Coding assistant: automatic checkpoints | ✅ | write/patch auto-backup + rename auto-checkpoint + Recycle-Bin delete; grouped checkpoints model-invoked |
 | Agent orchestration: executor loop, step tracking, limits | ✅ | `chatEngine` loop + `taskService` step records; bounded by turns/actions/time |
-| Agent orchestration: Planner / Verifier / Recovery | 🔧 | Planner: persisted `plan_task` artifact; Verifier: evidence-based pass with persisted verdict; Recovery: plan-aware retries. Remaining: task-level pause/resume mid-run |
-| Agent orchestration: Task Manager (pause, resume, cancel, retry, SQLite persistence) | 🔧 | Cancel/retry/persisted state shipped; mid-run task pause/resume remaining (control sessions already pause/resume) |
+| Agent orchestration: Planner / Verifier / Recovery | ✅ | Planner: persisted `plan_task` artifact; Verifier: evidence-based pass with persisted verdict; Recovery: plan-aware retries |
+| Agent orchestration: Task Manager (pause, resume, cancel, retry, SQLite persistence) | ✅ | Cancel/retry/persisted state plus checkpoint-level pause/resume mid-run (`chatEngine.pauseTask/resumeTask`, `paused` status); control sessions pause/resume independently |
 | SQLite persistence (conversations, tasks, providers, memories, logs) | ✅ | `storage/database.ts`, `repositories.ts` |
 | DPAPI-protected keys, redaction, path guard, command policy | ✅ | `security/*` |
 | IPC allowlist validation | ✅ | `ipc.ts` + `shared/ipc.ts` contract |
@@ -108,17 +108,22 @@ Files: `src/shared/speech.ts` (new), `ChatPage.tsx`, `SettingsPage.tsx`,
 3. Recovery: retrying a failed task builds a recovery prompt from the
    persisted plan progress (statuses + evidence) and the verifier finding, so
    the executor resumes from the first unfinished step instead of restarting.
+4. Task-level pause/resume: a pause request blocks the executor at its next
+   checkpoint (between model turns and between tool calls, never mid-action),
+   persists the task as `paused` (schema transition `running ↔ paused`,
+   `paused → failed/cancelled`), and resume/cancel/shutdown all release it.
+   Task Monitor and the chat composer expose Pause/Resume; interrupted paused
+   tasks are reaped as failed on startup. Tests: `tests/unit/taskPause.test.ts`.
 
-Remaining for full Phase 6: task-level pause/resume mid-run (control sessions
-already support pause/resume; the chat executor currently supports
-cancel/retry only).
+Phase 6 is complete.
 
 Files: `shared/types.ts`, `shared/defaults.ts`, `storage/database.ts` (v2),
-`storage/repositories.ts`, `tasks/taskService.ts`, `tools/registry.ts`
-(`plan_task`), `ai/chatEngine.ts` (planner block, verifier, recovery),
-`SettingsPage.tsx`, `ActivityPage.tsx`, `styles.css`; tests
+`storage/repositories.ts`, `tasks/taskService.ts`, `tasks/state.ts`,
+`tools/registry.ts` (`plan_task`), `ai/chatEngine.ts` (planner block, verifier,
+recovery, pause gate), `ipc.ts`, `preload/index.ts`, `SettingsPage.tsx`,
+`ActivityPage.tsx`, `ChatPage.tsx`, `styles.css`; tests
 `tests/unit/taskVerification.test.ts`, `tests/unit/planTool.test.ts`,
-`tests/integration/database.test.ts`.
+`tests/unit/taskPause.test.ts`, `tests/integration/database.test.ts`.
 
 ## Phase 7 — Persistent memory
 

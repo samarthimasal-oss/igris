@@ -25,6 +25,7 @@ export type RunStatus =
   | 'thinking'
   | 'working'
   | 'streaming'
+  | 'paused'
   | 'done'
   | 'failed'
   | 'cancelled'
@@ -110,6 +111,8 @@ interface AppStore {
   regenerate: (messageId: string) => Promise<void>
   editAndResend: (messageId: string, content: string) => Promise<void>
   cancelRun: (runId: string) => Promise<void>
+  pauseTask: (taskId: string) => Promise<void>
+  resumeTask: (taskId: string) => Promise<void>
   answerConfirmation: (id: string, approved: boolean) => Promise<void>
   setComposerDraft: (text: string) => void
   consumeFocus: () => string | null
@@ -652,6 +655,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (!result.ok) get().notify('info', 'Nothing to stop', result.message)
     } catch (error) {
       get().notify('error', 'Could not stop the response', errorMessage(error))
+    }
+  },
+
+  pauseTask: async (taskId) => {
+    const bridge = api()
+    if (!bridge) return
+    try {
+      const result = await bridge.tasks.pause(taskId)
+      if (!result.ok) get().notify('info', 'Nothing to pause', result.message)
+    } catch (error) {
+      get().notify('error', 'Could not pause the task', errorMessage(error))
+    }
+  },
+
+  resumeTask: async (taskId) => {
+    const bridge = api()
+    if (!bridge) return
+    try {
+      const result = await bridge.tasks.resume(taskId)
+      if (!result.ok) get().notify('info', 'Nothing to resume', result.message)
+    } catch (error) {
+      get().notify('error', 'Could not resume the task', errorMessage(error))
     }
   },
 

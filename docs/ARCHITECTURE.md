@@ -102,7 +102,7 @@ OpenRouter Free uses the same compatible adapter but applies a stricter contract
 
 Control runs raise the effective turn limit to at least 30 and prune older tool-result images so at most two screenshots remain in the active context. Each turn re-checks the session, so pause, stop, or expiry takes effect before the next action.
 
-Runs have an `AbortController`, a global deadline, cancellation on app shutdown, per-run confirmation tracking, and replay protection so a repeated tool call cannot loop forever. Errors are serialized as stable codes (`AUTH`, `RATE_LIMIT`, `QUOTA`, `NETWORK`, `TIMEOUT`, `PERMISSION`, etc.) with retryability metadata.
+Runs have an `AbortController`, a global deadline, cancellation on app shutdown, per-run confirmation tracking, and replay protection so a repeated tool call cannot loop forever. A user pause blocks the run at the next checkpoint (between model turns and between tool calls) with the task persisted as `paused`; resume, cancel, and shutdown all release it. Errors are serialized as stable codes (`AUTH`, `RATE_LIMIT`, `QUOTA`, `NETWORK`, `TIMEOUT`, `PERMISSION`, etc.) with retryability metadata.
 
 ## Tools
 

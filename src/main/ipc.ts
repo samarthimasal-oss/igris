@@ -223,6 +223,8 @@ const schemas: Partial<Record<IpcMethod, z.ZodType>> = {
     .optional(),
   'tasks.get': z.object({ id }).strip(),
   'tasks.cancel': z.object({ id }).strip(),
+  'tasks.pause': z.object({ id }).strip(),
+  'tasks.resume': z.object({ id }).strip(),
   'tasks.retry': z.object({ id }).strip(),
   'projects.remove': z.object({ id }).strip(),
   'projects.scan': z.object({ id }).strip(),
@@ -528,6 +530,18 @@ function buildHandlers(ctx: AppContext): Record<IpcMethod, Handler> {
       return ctx.chat.cancelTask(input.id)
         ? { ok: true }
         : { ok: false, message: 'That task has already finished.' }
+    },
+    'tasks.pause': (raw) => {
+      const input = raw as IpcContract['tasks.pause']['input']
+      return ctx.chat.pauseTask(input.id)
+        ? { ok: true, message: 'Pausing at the next checkpoint.' }
+        : { ok: false, message: 'That task is not running.' }
+    },
+    'tasks.resume': (raw) => {
+      const input = raw as IpcContract['tasks.resume']['input']
+      return ctx.chat.resumeTask(input.id)
+        ? { ok: true, message: 'Resuming.' }
+        : { ok: false, message: 'That task is not paused.' }
     },
     'tasks.retry': (raw) => ctx.chat.retryTask((raw as IpcContract['tasks.retry']['input']).id),
 
