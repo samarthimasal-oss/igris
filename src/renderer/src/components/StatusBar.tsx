@@ -4,19 +4,12 @@ import { useAppStore } from '../lib/store'
 import { formatBytes } from '../lib/format'
 import clsx from 'clsx'
 
-const ACTIVE_STATUSES = new Set([
-  'queued',
-  'planning',
-  'awaiting_confirmation',
-  'running'
-])
-
 export function StatusBar() {
   const providers = useAppStore((state) => state.providers)
   const preferredProviderId = useAppStore((state) => state.preferredProviderId)
   const health = useAppStore((state) => state.health)
   const system = useAppStore((state) => state.system)
-  const tasks = useAppStore((state) => state.tasks)
+  const runs = useAppStore((state) => state.runs)
   const [clock, setClock] = useState(() => new Date())
 
   useEffect(() => {
@@ -29,20 +22,20 @@ export function StatusBar() {
     providers.find((item) => item.isDefault) ??
     providers[0] ??
     null
-  const activeTasks = tasks.filter((task) => ACTIVE_STATUSES.has(task.status)).length
+  const activeRuns = Object.values(runs).filter((run) => !run.finished).length
   const degraded = health?.checks.some((check) => check.status === 'error') ?? false
 
   return (
     <footer className="statusbar">
       <div className="statusbar-left">
         <span className="statusbar-cell">
-          <span className={clsx('status-led', degraded ? 'is-error' : 'is-live')} />
-          {degraded ? 'Core attention' : 'Core online'}
+          <span className={clsx('status-led', degraded ? 'is-error' : health ? 'is-live' : '')} />
+          {degraded ? 'CORE ATTENTION' : health ? 'CORE ONLINE' : 'CORE BOOTING'}
         </span>
         <span className="statusbar-divider" />
         <span className="statusbar-cell">
-          <ShieldCheck size={12} />
-          Local-first · DPAPI
+          <ShieldCheck size={11} />
+          LOCAL-FIRST · DPAPI
         </span>
       </div>
       <div className="statusbar-center">
@@ -50,23 +43,23 @@ export function StatusBar() {
           <>
             <span className="statusbar-provider">{provider.name}</span>
             <span className="statusbar-model">
-              {provider.defaultModel || 'Model not selected'}
+              // {provider.defaultModel || 'model not selected'}
             </span>
           </>
         ) : (
-          <span className="statusbar-model">No AI provider configured</span>
+          <span className="statusbar-model">NO PROVIDER CONFIGURED</span>
         )}
       </div>
       <div className="statusbar-right">
-        {activeTasks > 0 ? (
+        {activeRuns > 0 ? (
           <span className="statusbar-cell statusbar-tasks">
             <span className="pulse-dot" />
-            {activeTasks} task{activeTasks === 1 ? '' : 's'} active
+            {activeRuns} RUNNING
           </span>
         ) : null}
         {health ? (
           <span className="statusbar-cell">
-            <Database size={12} />
+            <Database size={11} />
             {formatBytes(health.databaseBytes)}
           </span>
         ) : null}

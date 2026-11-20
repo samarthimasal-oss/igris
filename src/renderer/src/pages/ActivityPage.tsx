@@ -8,6 +8,8 @@ import {
   Download,
   FileJson,
   Loader2,
+  Pause,
+  Play,
   RefreshCw,
   RotateCcw,
   ShieldAlert,
@@ -40,11 +42,12 @@ import clsx from 'clsx'
 type ActivityTab = 'tasks' | 'logs'
 type TaskFilter = 'all' | 'active' | TaskStatus
 
-const ACTIVE = new Set<TaskStatus>(['queued', 'planning', 'awaiting_confirmation', 'running'])
+const ACTIVE = new Set<TaskStatus>(['queued', 'planning', 'awaiting_confirmation', 'running', 'paused'])
 
 function statusTone(status: TaskStatus): 'accent' | 'success' | 'danger' | 'warning' | 'neutral' {
   if (status === 'running' || status === 'planning') return 'accent'
   if (status === 'queued') return 'neutral'
+  if (status === 'paused') return 'warning'
   if (status === 'awaiting_confirmation') return 'warning'
   if (status === 'completed') return 'success'
   if (status === 'failed') return 'danger'
@@ -54,6 +57,7 @@ function statusTone(status: TaskStatus): 'accent' | 'success' | 'danger' | 'warn
 function StatusIcon({ status }: { status: TaskStatus }) {
   if (status === 'queued') return <Clock3 size={13} />
   if (status === 'planning' || status === 'running') return <Loader2 size={13} className="spin" />
+  if (status === 'paused') return <Pause size={13} />
   if (status === 'awaiting_confirmation') return <ShieldAlert size={13} />
   if (status === 'completed') return <Check size={13} />
   if (status === 'failed') return <XCircle size={13} />
@@ -147,6 +151,32 @@ export function ActivityPage() {
       await refreshTasks()
     } catch (error) {
       notify('error', 'Could not cancel task', errorMessage(error))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const pauseTask = async (task: Task): Promise<void> => {
+    setBusyId(task.id)
+    try {
+      const result = await window.igris.tasks.pause(task.id)
+      notify(result.ok ? 'success' : 'info', result.ok ? 'Pause requested' : 'Nothing to pause', result.message)
+      await refreshTasks()
+    } catch (error) {
+      notify('error', 'Could not pause task', errorMessage(error))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const resumeTask = async (task: Task): Promise<void> => {
+    setBusyId(task.id)
+    try {
+      const result = await window.igris.tasks.resume(task.id)
+      notify(result.ok ? 'success' : 'info', result.ok ? 'Resumed' : 'Nothing to resume', result.message)
+      await refreshTasks()
+    } catch (error) {
+      notify('error', 'Could not resume task', errorMessage(error))
     } finally {
       setBusyId(null)
     }
@@ -347,6 +377,28 @@ export function ActivityPage() {
                     </div>
                   </div>
                   <div className="task-detail-actions">
+                    {detail.task.status === 'running' ? (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        icon={<Pause size={12} />}
+                        onClick={() => void pauseTask(detail.task)}
+                        loading={busyId === detail.task.id}
+                      >
+                        Pause
+                      </Button>
+                    ) : null}
+                    {detail.task.status === 'paused' ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={<Play size={12} />}
+                        onClick={() => void resumeTask(detail.task)}
+                        loading={busyId === detail.task.id}
+                      >
+                        Resume
+                      </Button>
+                    ) : null}
                     {ACTIVE.has(detail.task.status) ? (
                       <Button
                         variant="danger"
@@ -387,10 +439,41 @@ export function ActivityPage() {
                     {detail.task.error}
                   </div>
                 ) : null}
+                {detail.task.verification ? (
+                  <div className={`task-verification is-${detail.task.verification.status}`}>
+                    <ShieldAlert size={14} />
+                    <span>
+                      <strong>Verifier: {detail.task.verification.status}</strong> —{' '}
+                      {detail.task.verification.evidence}
+                    </span>
+                  </div>
+                ) : null}
                 {detail.task.result ? (
                   <div className="task-result">
                     <span>Result</span>
                     <p>{detail.task.result}</p>
+                  </div>
+                ) : null}
+                {detail.task.plan ? (
+                  <div className="task-section">
+                    <div className="task-section-head">
+                      <h3>Plan</h3>
+                      <Badge tone="neutral">{detail.task.plan.steps.length}</Badge>
+                    </div>
+                    <div className="step-timeline">
+                      {detail.task.plan.steps.map((step, index) => (
+                        <div key={index} className="step-row">
+                          <span className={clsx('step-marker', `is-${step.status}`)}>{index + 1}</span>
+                          <div className="step-copy">
+                            <span>{step.title}</span>
+                            {step.evidence ? <em className="plan-evidence">{step.evidence}</em> : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {detail.task.plan.risks ? (
+                      <p className="plan-risks">Risks: {detail.task.plan.risks}</p>
+                    ) : null}
                   </div>
                 ) : null}
 

@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ChatSendInput,
   ConfirmationRequest,
+  ControlSessionState,
   Conversation,
   ConversationSummary,
   DeepPartial,
@@ -17,12 +18,14 @@ import type {
   Workspace
 } from '@shared/types'
 import { errorHint, errorMessage } from './errors'
+import { speak, stopSpeaking } from '@shared/speech'
 
 export type RunStatus =
   | 'starting'
   | 'thinking'
   | 'working'
   | 'streaming'
+  | 'paused'
   | 'done'
   | 'failed'
   | 'cancelled'
@@ -74,6 +77,7 @@ interface AppStore {
   messages: ChatMessage[]
   loadingConversation: boolean
   runs: Record<string, ActiveRun>
+  control: ControlSessionState | null
   pendingSend: { content: string; workspaceId: string | null } | null
   confirmations: PendingConfirmation[]
   toasts: ToastItem[]
@@ -98,6 +102,7 @@ interface AppStore {
   dismissToast: (id: string) => void
   handleChatEvent: (event: ChatEvent) => void
   handleTaskEvent: () => void
+  setControl: (state: ControlSessionState | null) => void
   loadConversation: (id: string) => Promise<void>
   newConversation: () => void
   deleteConversation: (id: string) => Promise<void>
@@ -106,6 +111,8 @@ interface AppStore {
   regenerate: (messageId: string) => Promise<void>
   editAndResend: (messageId: string, content: string) => Promise<void>
   cancelRun: (runId: string) => Promise<void>
+  pauseTask: (taskId: string) => Promise<void>
+  resumeTask: (taskId: string) => Promise<void>
   answerConfirmation: (id: string, approved: boolean) => Promise<void>
   setComposerDraft: (text: string) => void
   consumeFocus: () => string | null
@@ -141,6 +148,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   messages: [],
   loadingConversation: false,
   runs: {},
+  control: null,
   pendingSend: null,
   confirmations: [],
   toasts: [],
@@ -160,7 +168,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ booting: true, bootError: null })
     bootPromise = (async () => {
       try {
-        const [settings, providers, system, health, tools, workspaces, conversations, tasks] =
+        const [settings, providers, system, health, tools, workspaces, conversations, tasks, control] =
           await Promise.all([
             bridge.settings.get(),
             bridge.providers.list(),
@@ -169,7 +177,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
             bridge.tools.list(),
             bridge.projects.list(),
             bridge.conversations.list(),
-            bridge.tasks.list({ limit: 80 })
+            bridge.tasks.list({ limit: 80 }),
+            bridge.control.state().catch(() => null)
           ])
         const preferred = chooseProvider(providers)
         set({
@@ -183,6 +192,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           workspaces,
           conversations,
           tasks,
+          control,
           onboardingOpen: !settings.onboardingComplete,
           preferredProviderId: preferred?.id ?? null,
           preferredWorkspaceId: workspaces[0]?.id ?? null
@@ -413,6 +423,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
         break
       }
       case 'done': {
+        {
+          const run = get().runs[event.runId]
+          const current = get().settings
+          if (
+            current?.voice.ttsEnabled &&
+            run?.conversationId &&
+            run.conversationId === get().activeConversation?.id
+          ) {
+            speak(event.message.content || run.text, {
+              voice: current.voice.ttsVoice || undefined,
+              rate: current.voice.ttsRate
+            })
+          }
+        }
         set((state) => {
           const run = state.runs[event.runId]
           if (!run) return state
@@ -503,6 +527,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     void get().refreshTasks()
   },
 
+  setControl: (control) => set({ control }),
+
   loadConversation: async (id) => {
     const bridge = api()
     if (!bridge) return
@@ -566,6 +592,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!bridge) return
     const trimmed = content.trim()
     if (!trimmed) return
+    stopSpeaking()
     const state = get()
     const activeRun = Object.values(state.runs).find(
       (run) => run.conversationId === state.activeConversation?.id && !run.finished
@@ -622,11 +649,34 @@ export const useAppStore = create<AppStore>((set, get) => ({
   cancelRun: async (runId) => {
     const bridge = api()
     if (!bridge) return
+    stopSpeaking()
     try {
       const result = await bridge.chat.cancel(runId)
       if (!result.ok) get().notify('info', 'Nothing to stop', result.message)
     } catch (error) {
       get().notify('error', 'Could not stop the response', errorMessage(error))
+    }
+  },
+
+  pauseTask: async (taskId) => {
+    const bridge = api()
+    if (!bridge) return
+    try {
+      const result = await bridge.tasks.pause(taskId)
+      if (!result.ok) get().notify('info', 'Nothing to pause', result.message)
+    } catch (error) {
+      get().notify('error', 'Could not pause the task', errorMessage(error))
+    }
+  },
+
+  resumeTask: async (taskId) => {
+    const bridge = api()
+    if (!bridge) return
+    try {
+      const result = await bridge.tasks.resume(taskId)
+      if (!result.ok) get().notify('info', 'Nothing to resume', result.message)
+    } catch (error) {
+      get().notify('error', 'Could not resume the task', errorMessage(error))
     }
   },
 

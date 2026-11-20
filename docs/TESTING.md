@@ -27,8 +27,8 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **79 passing**, 10 files, ~1 s |
-| `npm run test:e2e` | **7 passing**, 1 worker, ~8 s |
+| `npm test` | **209 passing**, 1 skipped, 30 files |
+| `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
 | `npm run dist` | Pass; `release/IGRIS-1.0.0-x64-Setup.exe` |
@@ -96,7 +96,8 @@ Live provider calls are intentionally not automated because no API key is presen
 - internal/user message separation;
 - abort-to-cancellation mapping;
 - serialization without internal leakage;
-- HTTP status mapping (401/403/404/429/402/5xx).
+- HTTP status mapping (401/403/404/429/402/5xx);
+- daily-quota 429s map to `QUOTA` with reset guidance, not an immediately retryable rate limit.
 
 ### `tests/unit/taskState.test.ts`
 
@@ -105,6 +106,141 @@ Live provider calls are intentionally not automated because no API key is presen
 - terminal-state lock;
 - cancellation from every active state;
 - invalid transition errors.
+
+### `tests/unit/controlSession.test.ts`
+
+- create and bind a session to a task;
+- scope enforcement for desktop, browser, and both;
+- 20-minute expiry with a fake clock;
+- pause/resume, stop, and task end;
+- action budget and no-session rejection;
+- explicit stops (`stop`/`endAll`) are distinguishable from a task ending on its own and from expiry.
+
+### `tests/unit/controlPolicy.test.ts`
+
+- key-chord parsing and rejection;
+- password, elevated, credential-manager, and self-window blocks;
+- HTTP(S)-only URL validation;
+- sensitive-text heuristics for checkout/send patterns.
+
+### `tests/unit/desktopService.test.ts`
+
+- action dispatch and target resolution;
+- close-window, shell-typing, and first-launch confirmations;
+- password-field refusal and stale UIA refs;
+- release-all behavior when the operator is absent.
+
+### `tests/unit/operatorProtocol.test.ts`
+
+- JSON-line framing, handshake, and request/response correlation;
+- request timeout and crash restart;
+- release-all on stop;
+- clean disposal.
+
+### `tests/unit/browserSnapshot.test.ts`
+
+- snapshot caps and ref injection;
+- password-value redaction;
+- URL scheme rejection;
+- stale-ref errors.
+
+### `tests/unit/toolRuntimeControl.test.ts`
+
+- `forceConfirmation` always prompts;
+- `ToolContext.confirm` denial paths;
+- denied results are returned to the model without retry.
+
+### `tests/unit/chatControl.test.ts`
+
+- control runs use at least 30 turns;
+- context keeps at most two screenshots;
+- session ends in `finally`;
+- system prompt includes control and stop rules.
+
+### `tests/unit/chatRetry.test.ts`
+
+- a transient failure before any output is retried and succeeds;
+- a failure after output was delivered is not retried (no duplicated text);
+- non-retryable `QUOTA` failures fail on the first attempt;
+- retry gives up after the third attempt;
+- backoff waits 2s then 6s between attempts.
+
+### `tests/unit/chatFallback.test.ts`
+
+- a failing primary provider switches the turn to the next configured provider, with a "Switching to" status event;
+- a failure after output was delivered is not retried on another provider (no duplicated text);
+- non-provider failures (e.g. `VALIDATION`) do not trigger a switch;
+- the switch is skipped when the `ai.autoFallback` setting is off;
+- when every candidate fails, the original primary error is rethrown and the original provider is restored.
+
+### `tests/unit/speech.test.ts`
+
+- `speechScript` reduces an assistant message to speakable prose: fenced code blocks are removed (including unclosed fences), inline code words survive, links keep their label while images and URLs vanish, headings/list/blockquote markers are stripped, bold and italics are flattened, table separator rows vanish, table rows become plain words, and whitespace plus stray punctuation spacing collapse;
+- a code-only message reduces to empty text, which the speaker skips;
+- `hasVoiceActivity` accepts speech-level and quiet-but-audible RMS windows, rejects silence, near-silence, and empty buffers.
+
+### `tests/unit/taskVerification.test.ts`
+
+- a consequential task (control/browser/file/terminal tools) gets a bounded verifier call whose `verified` verdict is persisted and whose per-step verdicts are merged into the persisted plan;
+- a `failed` verdict fails the task with the verifier's evidence in the error;
+- an unparsable verifier reply is recorded as `unverified`, never as success;
+- a verifier transport failure is recorded as `unverified` with the error message;
+- cancellation propagates without recording a verdict;
+- tasks without consequential tools, or with the `ai.verifyActions` setting off, never run the verifier;
+- `parseVerdict` accepts verdict JSON embedded in prose and downgrades unknown statuses, missing evidence, and JSON-free replies to `unverified`.
+
+### `tests/unit/planTool.test.ts`
+
+- `plan_task` records the ordered steps (all `pending`) and risks on the task and reports the count;
+- empty plans, sub-3-character steps, and more than 12 steps are rejected.
+
+### `tests/unit/memoryDedupe.test.ts`
+
+- `findSimilarMemory` catches exact duplicates after case/punctuation/whitespace normalization, catches near-identical rephrasings via token overlap (Jaccard ≥ 0.8), never flags genuinely different text, and reports the most similar entry;
+- the `save_memory` tool refuses duplicates (reports the existing memory id, does not write) and still saves genuinely new text.
+
+### `tests/unit/renameCheckpoint.test.ts`
+
+- `rename_entry` checkpoints the source file before the rename and reports the backup location;
+- when the item cannot be checkpointed (e.g. a directory), the rename still proceeds and no checkpoint is reported.
+
+### `tests/unit/taskPause.test.ts`
+
+- `pauseTask` only accepts tasks with an active run and `resumeTask` is one-shot;
+- the pause gate is a no-op when nothing was requested;
+- a paused run blocks at its checkpoint (no further status changes) and, once released, records `paused → running` with "Paused/Resumed by the user" steps and emits the matching chat status events;
+- cancelling a paused run through the abort signal rejects with a cancellation and clears the pause marker;
+- a persisted cancel request without an abort is honoured (the controller is aborted).
+
+### `tests/unit/browserHandoff.test.ts`
+
+- a handoff pauses the task's control session, carries the supplied reason into the guidance, and falls back to a default reason;
+- the `browser` tool schema exposes the `handoff` action and a bounded `reason` field;
+- the executor gate holds a run while the session is paused, records a "Waiting for the user" step, then continues once resumed and re-arms the run deadline;
+- a stopped or ended session ends the wait with "do not call tools" guidance;
+- abort and persisted cancel requests release the gate (the latter aborts the controller).
+
+### `tests/unit/browserDownloads.test.ts`
+
+- suggested filenames are reduced to a safe basename (no paths, invalid characters, trailing dots/spaces, or Windows device names);
+- executables, installers, and scripts are blocked case-insensitively, including double extensions, while normal document types pass;
+- an approved download is saved only at the path the user chose, and the result appears in the browser state summary;
+- cancelling the save dialog denies and deletes the download;
+- no prompt is shown when the session is missing, paused, or desktop-only;
+- failed transfers, oversized files, and control ending during the dialog are recorded without saving anything.
+
+### `tests/unit/geminiSchema.test.ts`
+
+- numeric `exclusiveMinimum`/`exclusiveMaximum` become inclusive `minimum`/`maximum`;
+- unsupported draft-7 keywords are dropped while the rest of the schema survives;
+- every provider tool schema is free of keywords Gemini rejects;
+- the positive window `handle` bound no longer rejects the request.
+
+### `tests/unit/geminiThoughtSignature.test.ts`
+
+- the `thoughtSignature` attached to a streamed function-call part is captured on the `ToolCall`;
+- replaying an assistant tool call to Gemini echoes the signature on the `functionCall` part;
+- calls that never had a signature do not gain the field.
 
 ## Integration tests
 
@@ -119,6 +255,15 @@ Live provider calls are intentionally not automated because no API key is presen
 - workspace deduplication by path, kind updates, removal.
 
 No temporary database files are left behind.
+
+`tests/integration/browserSmoke.test.ts` is opt-in and uses a real installed browser:
+
+```powershell
+$env:IGRIS_BROWSER_SMOKE = "1"
+npm test
+```
+
+It starts a local HTTP server, launches the managed Edge profile, navigates, snapshots, clicks, types, and verifies the result. It also downloads a file through the approval callback and checks the saved bytes, then confirms an `.exe` download is refused without prompting. It never touches the user's daily browser profile. Without the variable the test is skipped.
 
 ## Electron end-to-end tests
 
@@ -138,6 +283,9 @@ Coverage:
 5. **OpenCode preset** — selecting OpenCode fills the gateway endpoint.
 6. **OpenRouter preset** — selecting OpenRouter Free fills the locked endpoint and shows the free-only notice.
 7. **Minimize launcher** - minimizes the workspace, verifies the robot bubble opens, clicks it, and confirms the main window is restored and the bubble hides.
+8. **Control HUD** — starts a session through the E2E hook, verifies the HUD and Home strip show the goal, pauses/resumes from both surfaces, stops, and confirms the HUD hides and the strip clears.
+9. **Phase 5/6 settings controls** — the Settings page renders the "Automatic provider fallback" and "Verify consequential actions" toggles and the hands-free listening control, each wired to a real button.
+10. **Control approval** — emits a `request_computer_control` confirmation, verifies the goal, **Allow for this task**, and stop hotkey copy, then resolves it as denied and confirms the modal closes.
 
 The test profile is removed after the run. Playwright traces are retained on failure under `test-results/`.
 
@@ -149,7 +297,7 @@ The test profile is removed after the run. Playwright traces are retained on fai
 npm run test:packaged
 ```
 
-It verifies that the ASAR bundle includes the preload and renderer, that `node:sqlite` loads inside the packaged Electron runtime, that the onboarding gate can be dismissed, that the bridge is present, and that client-side routing reaches Settings. This catches packaging regressions that source-mode E2E cannot.
+It verifies that the ASAR bundle includes the preload and renderer, that `node:sqlite` loads inside the packaged Electron runtime, that the onboarding gate can be dismissed, that the bridge is present, and that client-side routing reaches Settings. It also checks that the packaged main bundle contains the operator asset and HUD renderer entry, so desktop control does not fail only after installation. This catches packaging regressions that source-mode E2E cannot.
 
 ### Adding an end-to-end test
 
@@ -208,6 +356,22 @@ Before releasing a build:
 - [ ] Screen vision with permission → capture lands in the local screenshot folder and the image is attached to the model for that run.
 - [ ] Browser: open a page, web search, and YouTube search all open in the default browser; IGRIS reports it cannot read or control the page.
 
+### Desktop and browser control
+
+- [ ] Settings shows `Control this computer` and `Control web pages` off by default; enabling persists across restart.
+- [ ] `request_computer_control` always prompts, even with sensitive-action confirmations off.
+- [ ] Deny leaves no session and no HUD.
+- [ ] Approve opens the HUD; Pause blocks the next action; Resume continues; Stop hides the HUD and releases input.
+- [ ] `Ctrl+Alt+Shift+X` stops an active task; the shortcut is absent when no session is running.
+- [ ] “Open Notepad and type a haiku” completes and can be verified with `elements` or a screenshot.
+- [ ] Typing into a password field and Task Manager is refused with a clear message.
+- [ ] Typing into Windows Terminal asks for confirmation.
+- [ ] Closing a window asks for confirmation; first launch of a new app asks once per session.
+- [ ] The managed browser opens with the dedicated profile, navigates to a local or public page, snapshots, clicks, and types.
+- [ ] `file://`, `javascript:`, and `data:` URLs are rejected by the browser tool; uploads are blocked and executable/script downloads are refused.
+- [ ] A normal download opens the "IGRIS: approve browser download" save dialog; saving works, cancelling leaves nothing on disk, and `browser` state lists the result.
+- [ ] Browser screenshots stay at or below 1280 px and the model context keeps at most two images.
+
 ### Windows behavior
 
 - [ ] Minimize/restore, the draggable robot bubble, tray menu, close-to-tray setting, second-instance focus.
@@ -226,7 +390,7 @@ Before releasing a build:
 ## What is not covered
 
 - Live cloud responses and provider-specific model behavior.
-- Screen/input automation across multi-monitor and DPI configurations.
+- Exhaustive input automation across every multi-monitor and DPI configuration; the operator is DPI-aware but coverage is a smoke test plus manual checks.
 - Arbitrary third-party websites or sites requiring authentication.
 - Installer upgrade/uninstall flows under all Windows policies.
 - Code signing and SmartScreen reputation.

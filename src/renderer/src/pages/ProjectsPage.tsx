@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Code2,
   File,
+  FileDiff,
   FilePlus2,
   Folder,
   FolderOpen,
@@ -12,8 +13,9 @@ import {
   FolderSearch,
   Pencil,
   RefreshCw,
-  Save,
   Search,
+  ShieldCheck,
+  TerminalSquare,
   Trash2,
   Undo2,
   X
@@ -40,8 +42,16 @@ import {
   Spinner
 } from '../components/ui'
 import { errorHint, errorMessage } from '../lib/errors'
+import { buildDiff } from '../lib/diff'
 import { formatBytes, languageLabel, plural } from '../lib/format'
 import clsx from 'clsx'
+
+interface ConsoleLine {
+  id: number
+  at: number
+  text: string
+  tone: 'info' | 'success' | 'warning' | 'danger'
+}
 
 type PendingAction =
   | { type: 'create'; kind: 'file' | 'dir'; value: string }
@@ -113,6 +123,8 @@ async function scanWorkspace(id: string): Promise<ProjectScan> {
 export function ProjectsPage() {
   const workspaces = useAppStore((state) => state.workspaces)
   const settings = useAppStore((state) => state.settings)
+  const preferredWorkspaceId = useAppStore((state) => state.preferredWorkspaceId)
+  const setPreferredWorkspace = useAppStore((state) => state.setPreferredWorkspace)
   const refreshWorkspaces = useAppStore((state) => state.refreshWorkspaces)
   const notify = useAppStore((state) => state.notify)
   const navigate = useNavigate()
@@ -132,11 +144,26 @@ export function ProjectsPage() {
   const [action, setAction] = useState<PendingAction>(null)
   const [actionBusy, setActionBusy] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [consoleLines, setConsoleLines] = useState<ConsoleLine[]>([])
   const searchRef = useRef<HTMLInputElement>(null)
+  const preferredApplied = useRef(false)
+  const consoleId = useRef(0)
 
   const canRead = settings?.permissions.filesystem ?? false
   const canWrite = settings?.permissions.fileWrite ?? false
   const workspace = workspaces.find((item) => item.id === selectedId) ?? null
+
+  const log = (text: string, tone: ConsoleLine['tone'] = 'info'): void => {
+    consoleId.current += 1
+    const entry: ConsoleLine = { id: consoleId.current, at: Date.now(), text, tone }
+    setConsoleLines((current) => [...current.slice(-7), entry])
+  }
+
+  const selectProject = (id: string | null): void => {
+    setSelectedId(id)
+    setPreferredWorkspace(id)
+  }
 
   useEffect(() => {
     void refreshWorkspaces()
@@ -147,10 +174,19 @@ export function ProjectsPage() {
       setSelectedId(null)
       return
     }
+    const preferred =
+      preferredWorkspaceId && workspaces.some((item) => item.id === preferredWorkspaceId)
+        ? preferredWorkspaceId
+        : null
+    if (preferred && !preferredApplied.current) {
+      preferredApplied.current = true
+      setSelectedId(preferred)
+      return
+    }
     if (!selectedId || !workspaces.some((item) => item.id === selectedId)) {
       setSelectedId(workspaces[0]?.id ?? null)
     }
-  }, [workspaces, selectedId])
+  }, [workspaces, selectedId, preferredWorkspaceId])
 
   const runScan = async (id: string): Promise<void> => {
     setScanning(true)
@@ -158,9 +194,12 @@ export function ProjectsPage() {
     try {
       const result = await scanWorkspace(id)
       setScan(result)
+      log(`scan complete · ${result.files} files · ${result.directories} folders`, 'success')
     } catch (error) {
       setScan(null)
-      setScanError(`${errorMessage(error)} ${errorHint(error) ?? ''}`.trim())
+      const message = `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim()
+      setScanError(message)
+      log(`scan failed · ${message}`, 'danger')
     } finally {
       setScanning(false)
     }
@@ -189,8 +228,12 @@ export function ProjectsPage() {
       setPreview(file)
       setDraft(file.content)
       setDirty(false)
+      setReviewOpen(false)
+      log(`open · ${file.path}`, 'info')
     } catch (error) {
-      notify('error', 'Could not open file', `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim())
+      const message = `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim()
+      notify('error', 'Could not open file', message)
+      log(`open failed · ${message}`, 'danger')
     } finally {
       setPreviewLoading(false)
     }
@@ -203,13 +246,17 @@ export function ProjectsPage() {
       const result = await window.igris.files.write(selectedId, preview.path, draft)
       setPreview({ ...preview, content: draft, size: result.bytes })
       setDirty(false)
+      setReviewOpen(false)
+      log(`write · ${preview.path} · ${formatBytes(result.bytes)}`, 'success')
       notify(
         'success',
         'File saved',
         result.backupPath ? 'A timestamped backup was created before the write.' : undefined
       )
     } catch (error) {
-      notify('error', 'Could not save file', `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim())
+      const message = `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim()
+      notify('error', 'Could not save file', message)
+      log(`write failed · ${message}`, 'danger')
     } finally {
       setSaving(false)
     }
@@ -225,8 +272,11 @@ export function ProjectsPage() {
     try {
       const results = await window.igris.files.search(selectedId, query.trim())
       setHits(results)
+      log(`search · “${query.trim()}” · ${plural(results.length, 'match', 'matches')}`, 'info')
     } catch (error) {
-      notify('error', 'Search failed', `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim())
+      const message = `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim()
+      notify('error', 'Search failed', message)
+      log(`search failed · ${message}`, 'danger')
     } finally {
       setSearching(false)
     }
@@ -241,6 +291,7 @@ export function ProjectsPage() {
         if (!value) return
         await window.igris.files.create(selectedId, value, action.kind)
         await runScan(selectedId)
+        log(`create ${action.kind} · ${value}`, 'success')
         notify('success', action.kind === 'dir' ? 'Folder created' : 'File created', value)
         if (action.kind === 'file') await openFile(value)
       } else if (action.type === 'rename') {
@@ -251,6 +302,7 @@ export function ProjectsPage() {
         setPreview(null)
         setSelectedPath(null)
         await openFile(value)
+        log(`rename · ${action.from} → ${value}`, 'success')
         notify('success', 'Item renamed')
       } else if (action.type === 'delete-file') {
         await window.igris.files.delete(selectedId, action.path)
@@ -259,12 +311,15 @@ export function ProjectsPage() {
         setSelectedPath(null)
         setDraft('')
         setDirty(false)
+        log(`recycle · ${action.path}`, 'warning')
         notify('success', 'Moved to Recycle Bin')
       } else if (action.type === 'remove-project') {
         await window.igris.projects.remove(action.id)
         await refreshWorkspaces()
+        log(`unapprove · ${action.name} · files untouched`, 'warning')
         if (selectedId === action.id) {
           setSelectedId(null)
+          setPreferredWorkspace(null)
           setScan(null)
           setPreview(null)
         }
@@ -272,7 +327,9 @@ export function ProjectsPage() {
       }
       setAction(null)
     } catch (error) {
-      notify('error', 'Action failed', `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim())
+      const message = `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim()
+      notify('error', 'Action failed', message)
+      log(`action failed · ${message}`, 'danger')
     } finally {
       setActionBusy(false)
     }
@@ -283,10 +340,13 @@ export function ProjectsPage() {
       const added = await window.igris.projects.add()
       if (!added) return
       await refreshWorkspaces()
-      setSelectedId(added.id)
+      selectProject(added.id)
+      log(`approve · ${added.path}`, 'success')
       notify('success', 'Project approved', added.name)
     } catch (error) {
-      notify('error', 'Could not add project', `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim())
+      const message = `${errorMessage(error)} ${errorHint(error) ?? ''}`.trim()
+      notify('error', 'Could not add project', message)
+      log(`approve failed · ${message}`, 'danger')
     }
   }
 
@@ -313,6 +373,11 @@ export function ProjectsPage() {
     return { files: scan.files, dirs: scan.directories }
   }, [scan])
 
+  const reviewDiff = useMemo(
+    () => (preview && dirty && !preview.binary ? buildDiff(preview.content, draft) : null),
+    [preview, draft, dirty]
+  )
+
   const hasProject = Boolean(selectedId && workspace)
   const modalOpen = action?.type === 'create' || action?.type === 'rename'
   const actionTitle =
@@ -335,9 +400,9 @@ export function ProjectsPage() {
   return (
     <div className="page projects-page">
       <PageHeader
-        eyebrow="Workspace"
+        eyebrow="// PROJECT WORKSPACE"
         title="Projects"
-        description="Approve a folder, inspect its structure, and edit with guarded writes and automatic backups."
+        description="Approved folders only. Inspect structure, search, preview and edit with guarded writes, automatic backups and an explicit diff review before every save."
         actions={
           <>
             <Button variant="ghost" icon={<FolderSearch size={15} />} onClick={() => navigate('/chat')}>
@@ -349,6 +414,21 @@ export function ProjectsPage() {
           </>
         }
       />
+
+      <div className="project-status-strip">
+        <span className="project-status-cell">
+          <Folder size={11} />
+          {plural(workspaces.length, 'approved root')}
+        </span>
+        <span className={clsx('project-status-cell', canRead ? 'is-live' : 'is-warn')}>
+          <ShieldCheck size={11} />
+          {canRead ? (canWrite ? 'read-write · backups on' : 'read-only preview') : 'filesystem off'}
+        </span>
+        <span className="project-status-path" title={workspace?.path}>
+          <TerminalSquare size={11} />
+          {workspace?.path ?? 'no active workspace'}
+        </span>
+      </div>
 
       {!canRead ? (
         <Alert
@@ -377,7 +457,7 @@ export function ProjectsPage() {
                   key={item.id}
                   type="button"
                   className={clsx('project-item', item.id === selectedId && 'is-active')}
-                  onClick={() => setSelectedId(item.id)}
+                  onClick={() => selectProject(item.id)}
                 >
                   <span className="project-item-icon">
                     <Folder size={15} />
@@ -451,6 +531,29 @@ export function ProjectsPage() {
               </button>
             </Card>
           ) : null}
+
+          <div className="project-console">
+            <div className="project-console-head">
+              <TerminalSquare size={11} />
+              <span>output</span>
+            </div>
+            {consoleLines.length ? (
+              consoleLines.map((line) => (
+                <p key={line.id} className={clsx('project-console-line', `is-${line.tone}`)}>
+                  <span className="project-console-time">
+                    {new Date(line.at).toLocaleTimeString(undefined, {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    })}
+                  </span>
+                  <span>{line.text}</span>
+                </p>
+              ))
+            ) : (
+              <p className="project-console-line is-dim">waiting for workspace events…</p>
+            )}
+          </div>
         </aside>
 
         <section className="project-work">
@@ -646,6 +749,12 @@ export function ProjectsPage() {
                           </div>
                         </div>
                         <div className="editor-actions">
+                          {dirty && reviewDiff ? (
+                            <span className="diff-stat">
+                              <span className="is-add">+{reviewDiff.added}</span>
+                              <span className="is-del">−{reviewDiff.removed}</span>
+                            </span>
+                          ) : null}
                           {dirty ? <Badge tone="warning">Unsaved</Badge> : null}
                           <IconButton label="Reveal in Explorer" size="sm" onClick={() => void revealSelected()}>
                             <FolderOpen size={13} />
@@ -682,12 +791,12 @@ export function ProjectsPage() {
                           <Button
                             variant="primary"
                             size="sm"
-                            icon={<Save size={13} />}
-                            onClick={() => void saveFile()}
+                            icon={<FileDiff size={13} />}
+                            onClick={() => setReviewOpen(true)}
                             loading={saving}
                             disabled={!dirty || !canWrite}
                           >
-                            Save
+                            Review & save
                           </Button>
                         </div>
                       </header>
@@ -719,7 +828,7 @@ export function ProjectsPage() {
                           onKeyDown={(event) => {
                             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
                               event.preventDefault()
-                              void saveFile()
+                              if (dirty && canWrite) setReviewOpen(true)
                             }
                           }}
                           spellCheck={false}
@@ -750,6 +859,87 @@ export function ProjectsPage() {
           )}
         </section>
       </div>
+
+      <Modal
+        open={reviewOpen}
+        onClose={() => {
+          if (!saving) setReviewOpen(false)
+        }}
+        title="Review file changes"
+        subtitle={
+          preview
+            ? `${preview.path} · +${reviewDiff?.added ?? 0} / −${reviewDiff?.removed ?? 0} lines`
+            : 'No file selected'
+        }
+        width={900}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setReviewOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={() => {
+                if (!preview) return
+                setDraft(preview.content)
+                setDirty(false)
+                setReviewOpen(false)
+                log(`discard · ${preview.path}`, 'warning')
+              }}
+              disabled={saving}
+            >
+              Discard changes
+            </Button>
+            <Button
+              variant="primary"
+              icon={<FileDiff size={13} />}
+              onClick={() => void saveFile()}
+              loading={saving}
+              disabled={!dirty || !canWrite}
+            >
+              Save changes
+            </Button>
+          </>
+        }
+      >
+        {reviewDiff ? (
+          reviewDiff.hunks.length ? (
+            <div className="diff-view">
+              {reviewDiff.truncated ? (
+                <p className="diff-note">Large file: comparison capped at 1,600 lines.</p>
+              ) : null}
+              {reviewDiff.hunks.map((hunk, index) => (
+                <div className="diff-hunk" key={`${hunk.oldStart}-${hunk.newStart}-${index}`}>
+                  <div className="diff-hunk-head">
+                    @@ -{hunk.oldStart},{hunk.oldCount} +{hunk.newStart},{hunk.newCount} @@
+                  </div>
+                  {hunk.lines.map((line, lineIndex) => (
+                    <div
+                      className={clsx('diff-row', `is-${line.kind}`)}
+                      key={`${line.kind}-${lineIndex}-${line.oldLine ?? line.newLine ?? 0}`}
+                    >
+                      <span className="diff-line">{line.oldLine ?? ''}</span>
+                      <span className="diff-line">{line.newLine ?? ''}</span>
+                      <span className="diff-mark">
+                        {line.kind === 'add' ? '+' : line.kind === 'del' ? '−' : ' '}
+                      </span>
+                      <span className="diff-text">{line.text || ' '}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="diff-note">No textual additions or deletions were detected.</p>
+          )
+        ) : (
+          <p className="diff-note">Edit the file to generate a reviewable diff.</p>
+        )}
+        <p className="settings-fineprint">
+          Saving writes inside the approved root and creates a timestamped backup first when the
+          backend supports it. Nothing is written until you confirm here.
+        </p>
+      </Modal>
 
       <Modal
         open={modalOpen}

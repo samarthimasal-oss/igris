@@ -3,7 +3,7 @@ import type { ConfirmationRequest, Settings, ToolExecutionRecord, ToolImage } fr
 import { AppError, normalizeError } from '../security/errors'
 import { redactAndTruncate } from '../security/redaction'
 import type { TaskService } from '../tasks/taskService'
-import type { ToolContext, ToolDefinition } from './registry'
+import type { ToolConfirmationPrompt, ToolContext, ToolDefinition } from './registry'
 import type { Logger } from '../services/logger'
 
 export interface ToolRuntimeHooks {
@@ -116,14 +116,41 @@ export class ToolRuntime {
     const context: ToolContext = {
       taskId: invocation.taskId,
       signal: invocation.signal,
-      preferredWorkspaceId: invocation.preferredWorkspaceId
+      preferredWorkspaceId: invocation.preferredWorkspaceId,
+      confirm: async (prompt: ToolConfirmationPrompt): Promise<boolean> => {
+        if (invocation.signal.aborted) {
+          throw new AppError('CANCELLED', 'The task was cancelled.')
+        }
+        const request: ConfirmationRequest = {
+          id: randomUUID(),
+          toolName: tool.id,
+          title: prompt.title,
+          description: prompt.description,
+          risk: prompt.risk ?? 'medium',
+          argumentsPreview: redactAndTruncate(JSON.stringify(parsed, null, 2), 4000),
+          expiresAt: new Date(Date.now() + 120_000).toISOString()
+        }
+        const approved = await invocation.hooks.requestConfirmation(request)
+        this.logger.info(
+          'control',
+          `${tool.id} gate "${prompt.title}" ${approved ? 'approved' : 'declined'}.`
+        )
+        if (invocation.signal.aborted) {
+          throw new AppError('CANCELLED', 'The task was cancelled.')
+        }
+        return approved
+      }
     }
 
-    let approval: 'not_required' | 'pending' | 'approved' | 'denied' =
-      tool.requiresConfirmation && settings.ai.confirmSensitiveActions ? 'pending' : 'not_required'
+    const needsToolApproval =
+      tool.forceConfirmation === true ||
+      (tool.requiresConfirmation && settings.ai.confirmSensitiveActions)
+    let approval: 'not_required' | 'pending' | 'approved' | 'denied' = needsToolApproval
+      ? 'pending'
+      : 'not_required'
     let existingRunId: string | null = null
 
-    if (tool.requiresConfirmation && settings.ai.confirmSensitiveActions) {
+    if (needsToolApproval) {
       let preview = ''
       try {
         preview = tool.preview ? await tool.preview(parsed, context) : ''
@@ -227,18 +254,24 @@ export class ToolRuntime {
       const outcome = await tool.run(parsed, { ...context, signal: timeoutController.signal })
       const safeText = redactAndTruncate(outcome.text, 30_000)
       this.tasks.updateToolRun(run.id, {
-        status: 'completed',
+        status: outcome.denied ? 'denied' : 'completed',
         result: safeText,
         finishedAt: new Date().toISOString()
       })
       invocation.hooks.onToolEvent({
         toolName: tool.id,
         title: tool.title,
-        status: 'completed',
+        status: outcome.denied ? 'denied' : 'completed',
         arguments: parsed,
         result: safeText
       })
-      return { ok: true, denied: false, text: safeText, display: outcome.display, images: outcome.images }
+      return {
+        ok: !outcome.denied,
+        denied: Boolean(outcome.denied),
+        text: safeText,
+        display: outcome.display,
+        images: outcome.images
+      }
     } catch (error) {
       if (invocation.signal.aborted) {
         this.tasks.updateToolRun(run.id, {

@@ -49,10 +49,14 @@ afterEach(() => {
 })
 
 describe('database migrations', () => {
-  it('creates a schema and reports a nonzero page allocation', () => {
+  it('creates the schema at version 2 and reports a nonzero page allocation', () => {
     expect(db.bytes()).toBeGreaterThan(0)
     const version = db.raw.prepare('PRAGMA user_version').get() as { user_version?: number }
-    expect(version.user_version).toBe(1)
+    expect(version.user_version).toBe(2)
+    const columns = db.raw.prepare('PRAGMA table_info(tasks)').all() as Array<{ name?: string }>
+    const names = columns.map((column) => column.name)
+    expect(names).toContain('plan')
+    expect(names).toContain('verification')
   })
 })
 
@@ -213,8 +217,10 @@ describe('TaskRepository', () => {
   it('marks interrupted work as failed and honours cancellation flags', () => {
     const active = tasks.create({ title: 'Long job', kind: 'chat' })
     const queued = tasks.create({ title: 'Queued job', kind: 'chat' })
+    const paused = tasks.create({ title: 'Paused job', kind: 'chat' })
     tasks.update(active.id, { status: 'running', startedAt: new Date().toISOString() })
-    expect(tasks.pendingCount()).toBe(2)
+    tasks.update(paused.id, { status: 'paused', startedAt: new Date().toISOString() })
+    expect(tasks.pendingCount()).toBe(3)
 
     tasks.requestCancel(active.id)
     expect(tasks.isCancelRequested(active.id)).toBe(true)
@@ -226,7 +232,40 @@ describe('TaskRepository', () => {
       error: 'Interrupted when IGRIS closed.'
     })
     expect(tasks.get(queued.id)?.status).toBe('failed')
+    expect(tasks.get(paused.id)?.status).toBe('failed')
     expect(tasks.pendingCount()).toBe(0)
+  })
+
+  it('persists plan and verification artifacts on tasks', () => {
+    const task = tasks.create({ title: 'Plan artifact test', kind: 'chat' })
+    expect(tasks.get(task.id)?.plan).toBeNull()
+    expect(tasks.get(task.id)?.verification).toBeNull()
+
+    tasks.update(task.id, {
+      plan: JSON.stringify({
+        steps: [
+          { title: 'Step one', status: 'completed', evidence: 'file written' },
+          { title: 'Step two', status: 'pending', evidence: null }
+        ],
+        risks: 'low',
+        createdAt: new Date().toISOString()
+      }),
+      verification: JSON.stringify({
+        status: 'verified',
+        evidence: 'the result text confirms it',
+        checkedAt: new Date().toISOString()
+      })
+    })
+    const stored = tasks.get(task.id)
+    expect(stored?.plan?.steps[0]).toMatchObject({ title: 'Step one', status: 'completed' })
+    expect(stored?.plan?.steps[1]?.status).toBe('pending')
+    expect(stored?.verification?.status).toBe('verified')
+
+    // Corrupt JSON stays null instead of poisoning the UI.
+    tasks.update(task.id, { plan: 'not-json', verification: 'nope' })
+    const corrupted = tasks.get(task.id)
+    expect(corrupted?.plan).toBeNull()
+    expect(corrupted?.verification).toBeNull()
   })
 })
 

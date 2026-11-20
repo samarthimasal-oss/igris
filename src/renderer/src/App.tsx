@@ -4,6 +4,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate
 } from 'react-router-dom'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
@@ -31,7 +32,7 @@ function BootScreen() {
         <span className="boot-orb-core" />
       </div>
       <div className="boot-brand">IGRIS</div>
-      <div className="boot-caption">Assembling the local core</div>
+      <div className="boot-caption">Initializing terminal core</div>
       <div className="boot-track">
         <span />
       </div>
@@ -97,6 +98,7 @@ class AppErrorBoundary extends Component<
 
 function MainApp() {
   const navigate = useNavigate()
+  const location = useLocation()
   const ready = useAppStore((state) => state.ready)
   const booting = useAppStore((state) => state.booting)
   const bootError = useAppStore((state) => state.bootError)
@@ -105,6 +107,7 @@ function MainApp() {
   const bootstrap = useAppStore((state) => state.bootstrap)
   const handleChatEvent = useAppStore((state) => state.handleChatEvent)
   const handleTaskEvent = useAppStore((state) => state.handleTaskEvent)
+  const setControl = useAppStore((state) => state.setControl)
   const setComposerDraft = useAppStore((state) => state.setComposerDraft)
   const newConversation = useAppStore((state) => state.newConversation)
   const consumeFocus = useAppStore((state) => state.consumeFocus)
@@ -119,6 +122,7 @@ function MainApp() {
     const unsubscribers = [
       bridge.chat.onEvent((event) => handleChatEvent(event)),
       bridge.tasks.onEvent(() => handleTaskEvent()),
+      bridge.events.onControl((event) => setControl(event.state)),
       bridge.events.onDraft((event) => {
         setComposerDraft(event.text)
         navigate('/chat')
@@ -138,14 +142,15 @@ function MainApp() {
     handleChatEvent,
     handleTaskEvent,
     navigate,
-    setComposerDraft
+    setComposerDraft,
+    setControl
   ])
 
   useEffect(() => {
     if (!focusConversationId) return
     const id = consumeFocus()
-    if (id) navigate(`/chat/${id}`)
-  }, [focusConversationId, consumeFocus, navigate])
+    if (id && location.pathname.startsWith('/chat')) navigate(`/chat/${id}`)
+  }, [focusConversationId, consumeFocus, navigate, location.pathname])
 
   useEffect(() => {
     const root = document.documentElement

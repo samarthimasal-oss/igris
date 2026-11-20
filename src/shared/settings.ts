@@ -26,7 +26,7 @@ export function normalizeSettings(raw: unknown): Settings {
 export function clampSettings(settings: Settings): Settings {
   const s = structuredClone(settings)
   s.ai.contextMessages = Math.min(80, Math.max(4, Math.round(s.ai.contextMessages)))
-  s.ai.maxToolIterations = Math.min(12, Math.max(1, Math.round(s.ai.maxToolIterations)))
+  s.ai.maxToolIterations = Math.min(60, Math.max(1, Math.round(s.ai.maxToolIterations)))
   s.ai.temperature = Math.min(2, Math.max(0, s.ai.temperature))
   s.privacy.retentionDays = Math.min(3650, Math.max(0, Math.round(s.privacy.retentionDays)))
   if (!['azure', 'violet', 'silver'].includes(s.appearance.accent)) s.appearance.accent = 'azure'

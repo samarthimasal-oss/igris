@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Info,
+  MonitorUp,
   ShieldAlert,
   X,
   XCircle
@@ -17,6 +18,32 @@ const TOAST_ICONS = {
   warning: AlertTriangle,
   error: XCircle
 } satisfies Record<ToastKind, typeof Info>
+
+const SCOPE_LABEL = {
+  desktop: 'your desktop',
+  browser: "IGRIS's managed browser",
+  both: 'your desktop and IGRIS\'s managed browser'
+} as const
+
+function controlRequest(request: { toolName: string; argumentsPreview: string }): {
+  goal: string
+  scope: keyof typeof SCOPE_LABEL
+} | null {
+  if (request.toolName !== 'request_computer_control') return null
+  try {
+    const parsed = JSON.parse(request.argumentsPreview) as { goal?: unknown; scope?: unknown }
+    const scope =
+      parsed.scope === 'desktop' || parsed.scope === 'browser' || parsed.scope === 'both'
+        ? parsed.scope
+        : 'both'
+    return {
+      goal: typeof parsed.goal === 'string' ? parsed.goal : 'Complete this task.',
+      scope
+    }
+  } catch {
+    return { goal: 'Complete this task.', scope: 'both' }
+  }
+}
 
 export function Toasts() {
   const toasts = useAppStore((state) => state.toasts)
@@ -54,6 +81,64 @@ export function ConfirmationPrompt() {
   const request = confirmations[0]
 
   if (!request) return null
+
+  const control = controlRequest(request)
+
+  if (control) {
+    return (
+      <Modal
+        open
+        title="Allow computer control for this task?"
+        subtitle="IGRIS pauses here until you decide. Approval covers this task only."
+        onClose={() => void answerConfirmation(request.id, false)}
+        width={580}
+        closeOnBackdrop={false}
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => void answerConfirmation(request.id, false)}
+            >
+              Deny
+            </Button>
+            <Button
+              variant="primary"
+              icon={<MonitorUp size={15} />}
+              onClick={() => void answerConfirmation(request.id, true)}
+            >
+              Allow for this task
+            </Button>
+          </>
+        }
+      >
+        <div className="confirmation-head">
+          <div className="confirmation-risk risk-high">
+            <ShieldAlert size={18} />
+            <span>Real mouse and keyboard access</span>
+          </div>
+          <span className="confirmation-tool">one task</span>
+        </div>
+        <h3 className="confirmation-title">{control.goal}</h3>
+        <p className="confirmation-description">
+          IGRIS may act on {SCOPE_LABEL[control.scope]} until the task ends, you press Stop, or 20
+          minutes pass. It can see the screen while it works.
+        </p>
+        <div className="confirmation-preview">
+          <span>Safety rules that always apply</span>
+          <ul className="confirmation-rules">
+            <li>Password fields, UAC and elevated windows, credential managers and IGRIS windows are blocked.</li>
+            <li>Closing windows, typing into a shell, first-time app launches, and checkout or send actions ask again.</li>
+            <li>Browser downloads and uploads are blocked. IGRIS uses its own Edge profile, never your normal one.</li>
+            <li>Stop any time from the control bar or with Ctrl+Alt+Shift+X.</li>
+          </ul>
+        </div>
+        <p className="confirmation-footnote">
+          Nothing runs until you allow it. You can revoke computer-control permissions at any time in
+          Settings → Permissions.
+        </p>
+      </Modal>
+    )
+  }
 
   return (
     <Modal

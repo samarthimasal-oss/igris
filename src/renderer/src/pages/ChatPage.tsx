@@ -12,7 +12,9 @@ import {
   Copy,
   Edit3,
   Mic,
+  Pause,
   Pencil,
+  Play,
   RotateCcw,
   SendHorizontal,
   Sparkles,
@@ -29,6 +31,7 @@ import {
 } from '../components/ToolTimeline'
 import { Badge, Button, IconButton, Input, Modal, Spinner, Textarea } from '../components/ui'
 import { clockTime, fullTime } from '../lib/format'
+import { hasVoiceActivity, stopSpeaking } from '@shared/speech'
 import type { ChatMessage } from '@shared/types'
 
 const SUGGESTIONS = [
@@ -203,11 +206,13 @@ function LiveRun({ run }: { run: ActiveRun }) {
           ? 'Working'
           : run.status === 'streaming'
             ? 'Writing'
-            : run.status === 'failed'
-              ? 'Failed'
-              : run.status === 'cancelled'
-                ? 'Stopped'
-                : 'Complete'
+            : run.status === 'paused'
+              ? 'Paused'
+              : run.status === 'failed'
+                ? 'Failed'
+                : run.status === 'cancelled'
+                  ? 'Stopped'
+                  : 'Complete'
 
   return (
     <article className="message message-assistant is-live">
@@ -269,6 +274,8 @@ export function ChatPage() {
   const newConversation = useAppStore((state) => state.newConversation)
   const sendMessage = useAppStore((state) => state.sendMessage)
   const cancelRun = useAppStore((state) => state.cancelRun)
+  const pauseTask = useAppStore((state) => state.pauseTask)
+  const resumeTask = useAppStore((state) => state.resumeTask)
   const regenerate = useAppStore((state) => state.regenerate)
   const editAndResend = useAppStore((state) => state.editAndResend)
   const renameConversation = useAppStore((state) => state.renameConversation)
@@ -287,12 +294,18 @@ export function ChatPage() {
   const threadRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const voicePermission = settings?.permissions.voice ?? false
+  const handsFree = settings?.voice.handsFree ?? false
   const [listening, setListening] = useState(false)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const mediaChunksRef = useRef<Blob[]>([])
   const mediaTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const vadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const vadActiveRef = useRef(false)
+  const hadRunRef = useRef(false)
+  const startListeningRef = useRef<() => Promise<void>>(async () => undefined)
 
   useEffect(() => {
     if (conversationId) void loadConversation(conversationId)
@@ -389,6 +402,15 @@ export function ChatPage() {
   useEffect(() => {
     return () => {
       if (mediaTimerRef.current) clearInterval(mediaTimerRef.current)
+      if (vadTimerRef.current) clearInterval(vadTimerRef.current)
+      const audioContext = audioContextRef.current
+      if (audioContext) {
+        try {
+          void audioContext.close()
+        } catch {
+          // Ignore teardown errors during unmount.
+        }
+      }
       const recorder = mediaRecorderRef.current
       if (recorder && recorder.state !== 'inactive') {
         try {
@@ -422,6 +444,8 @@ export function ChatPage() {
       notify('warning', 'Voice input is off', 'Enable microphone access in Settings → Permissions.')
       return
     }
+    // The user is about to talk; whatever IGRIS is saying is interrupted.
+    stopSpeaking()
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
@@ -440,29 +464,61 @@ export function ChatPage() {
           clearInterval(mediaTimerRef.current)
           mediaTimerRef.current = null
         }
+        if (vadTimerRef.current) {
+          clearInterval(vadTimerRef.current)
+          vadTimerRef.current = null
+        }
+        const spoke = vadActiveRef.current
+        vadActiveRef.current = false
+        const audioContext = audioContextRef.current
+        audioContextRef.current = null
+        if (audioContext) {
+          try {
+            void audioContext.close()
+          } catch {
+            // Already closed.
+          }
+        }
         const tracks = stream.getTracks()
         for (const track of tracks) track.stop()
         mediaStreamRef.current = null
+        // Speech was interrupted the moment the microphone opened; nothing to do here.
         const blob = new Blob(mediaChunksRef.current, { type: activeRecorder?.mimeType || 'audio/webm' })
-        if (blob.size > 0) {
-          const audioBase64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
-            reader.onerror = () => reject(reader.error)
-            reader.readAsDataURL(blob)
-          })
-          const text = await bridge.voice.transcribe({ audioBase64, mimeType: blob.type || 'audio/webm' })
-          const clean = text.text.trim()
-          if (clean) {
-            try {
-              await sendMessage(clean, preferredWorkspaceId)
-            } catch {
-              // Surface failures through the normal error flow on the next send.
-            }
-          }
+        if (blob.size === 0 || !spoke) return
+        const audioBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+          reader.onerror = () => reject(reader.error)
+          reader.readAsDataURL(blob)
+        })
+        const text = await bridge.voice.transcribe({ audioBase64, mimeType: blob.type || 'audio/webm' })
+        const clean = text.text.trim()
+        if (!clean) return
+        // A bare stop command halts speech without starting a new turn.
+        if (/^(stop|stop speaking|quiet|cancel)[.!?…]*$/i.test(clean)) return
+        try {
+          await sendMessage(clean, preferredWorkspaceId)
+        } catch {
+          // Surface failures through the normal error flow on the next send.
         }
       }
       recorder.start(250)
+      // Voice-activity detection: remember whether speech was ever loud enough,
+      // so silent recordings are never sent for transcription.
+      const audioContext = new AudioContext()
+      if (audioContext.state === 'suspended') void audioContext.resume()
+      const analyser = audioContext.createAnalyser()
+      analyser.fftSize = 2048
+      audioContext.createMediaStreamSource(stream).connect(analyser)
+      // Keep the audio graph advancing without playing anything out loud.
+      analyser.connect(audioContext.createMediaStreamDestination())
+      audioContextRef.current = audioContext
+      vadActiveRef.current = false
+      const vadBuffer = new Float32Array(analyser.fftSize)
+      vadTimerRef.current = setInterval(() => {
+        analyser.getFloatTimeDomainData(vadBuffer)
+        if (hasVoiceActivity(vadBuffer)) vadActiveRef.current = true
+      }, 200)
       setListening(true)
       setRecordingSeconds(0)
       mediaTimerRef.current = setInterval(() => setRecordingSeconds((seconds) => seconds + 1), 1000)
@@ -470,6 +526,25 @@ export function ChatPage() {
       notify('error', 'Microphone access failed', error instanceof Error ? error.message : undefined)
     }
   }
+
+  startListeningRef.current = startListening
+
+  // Hands-free: arm the microphone when the chat page opens, if enabled.
+  useEffect(() => {
+    if (handsFree && voicePermission) void startListeningRef.current()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Hands-free: after a run finishes, reopen the microphone for the next command.
+  useEffect(() => {
+    if (latestActiveRun) {
+      hadRunRef.current = true
+      return
+    }
+    if (!hadRunRef.current) return
+    hadRunRef.current = false
+    if (handsFree && voicePermission && !listening) void startListeningRef.current()
+  }, [latestActiveRun, handsFree, voicePermission, listening])
 
   const openRename = (id: string, title: string): void => {
     setRenameTarget({ id, title })
@@ -716,14 +791,34 @@ export function ChatPage() {
                   {listening ? <Square size={12} /> : <Mic size={13} />}
                 </IconButton>
                 {latestActiveRun ? (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    icon={<Square size={12} />}
-                    onClick={() => void cancelRun(latestActiveRun.runId)}
-                  >
-                    Stop
-                  </Button>
+                  <>
+                    {latestActiveRun.status === 'paused' ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={<Play size={12} />}
+                        onClick={() => void resumeTask(latestActiveRun.taskId)}
+                      >
+                        Resume
+                      </Button>
+                    ) : (
+                      <IconButton
+                        label="Pause at the next checkpoint"
+                        size="sm"
+                        onClick={() => void pauseTask(latestActiveRun.taskId)}
+                      >
+                        <Pause size={13} />
+                      </IconButton>
+                    )}
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      icon={<Square size={12} />}
+                      onClick={() => void cancelRun(latestActiveRun.runId)}
+                    >
+                      Stop
+                    </Button>
+                  </>
                 ) : (
                   <Button
                     variant="primary"

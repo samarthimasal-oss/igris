@@ -14,7 +14,10 @@ import type {
 type GeminiPart =
   | { text: string }
   | { inlineData: { mimeType: string; data: string } }
-  | { functionCall: { name: string; args: Record<string, unknown> } }
+  | {
+      functionCall: { name: string; args: Record<string, unknown> }
+      thoughtSignature?: string
+    }
   | { functionResponse: { name: string; response: Record<string, unknown> } }
 
 interface GeminiContent {
@@ -71,7 +74,10 @@ function mapContents(messages: ModelMessage[]): GeminiContent[] {
       const parts: GeminiPart[] = []
       if (message.content) parts.push({ text: message.content })
       for (const call of message.toolCalls ?? []) {
-        parts.push({ functionCall: { name: call.name, args: call.arguments ?? {} } })
+        parts.push({
+          functionCall: { name: call.name, args: call.arguments ?? {} },
+          ...(call.thoughtSignature ? { thoughtSignature: call.thoughtSignature } : {})
+        })
       }
       push('model', parts)
       continue
@@ -90,19 +96,63 @@ function keyParam(config: ProviderRuntimeConfig): string {
   return `key=${encodeURIComponent(config.apiKey)}`
 }
 
-function extractParts(chunk: GeminiChunk): {
-  text: string
-  calls: Array<{ name: string; args: Record<string, unknown> }>
-} {
+/**
+ * Gemini accepts an OpenAPI-style subset of JSON Schema. Zod emits draft-7
+ * keywords it does not understand (for example `exclusiveMinimum`), and a
+ * single unknown keyword rejects the whole request with HTTP 400. Translate
+ * the ones we can express and drop the rest; Zod still validates arguments
+ * at runtime, so the model-facing schema is a hint, not the enforcement.
+ */
+export function sanitizeGeminiSchema(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeGeminiSchema)
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(value)) {
+      if (
+        key === '$schema' ||
+        key === 'additionalProperties' ||
+        key === 'default' ||
+        key === 'examples'
+      ) {
+        continue
+      }
+      if (key === 'exclusiveMinimum') {
+        if (typeof entry === 'number') out.minimum = entry
+        continue
+      }
+      if (key === 'exclusiveMaximum') {
+        if (typeof entry === 'number') out.maximum = entry
+        continue
+      }
+      if (key === 'const') {
+        out.enum = [entry]
+        continue
+      }
+      out[key] = sanitizeGeminiSchema(entry)
+    }
+    return out
+  }
+  return value
+}
+
+interface GeminiCall {
+  name: string
+  args: Record<string, unknown>
+  thoughtSignature?: string
+}
+
+function extractParts(chunk: GeminiChunk): { text: string; calls: GeminiCall[] } {
   let text = ''
-  const calls: Array<{ name: string; args: Record<string, unknown> }> = []
+  const calls: GeminiCall[] = []
   for (const candidate of chunk.candidates ?? []) {
     for (const part of candidate.content?.parts ?? []) {
       if ('text' in part && typeof part.text === 'string') text += part.text
       if ('functionCall' in part && part.functionCall?.name) {
         calls.push({
           name: part.functionCall.name,
-          args: part.functionCall.args ?? {}
+          args: part.functionCall.args ?? {},
+          thoughtSignature:
+            typeof part.thoughtSignature === 'string' ? part.thoughtSignature : undefined
         })
       }
     }
@@ -175,7 +225,7 @@ export class GeminiAdapter implements ProviderAdapter {
           functionDeclarations: request.tools.map((tool) => ({
             name: tool.name,
             description: tool.description,
-            parameters: tool.parameters
+            parameters: sanitizeGeminiSchema(tool.parameters) as Record<string, unknown>
           }))
         }
       ]
@@ -204,7 +254,8 @@ export class GeminiAdapter implements ProviderAdapter {
         const toolCall: ToolCall = {
           id: `gemini_call_${Date.now()}_${callIndex}`,
           name: call.name,
-          arguments: call.args
+          arguments: call.args,
+          thoughtSignature: call.thoughtSignature
         }
         yield { type: 'tool_call', call: toolCall }
       }

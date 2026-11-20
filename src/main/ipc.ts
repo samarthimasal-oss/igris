@@ -41,6 +41,10 @@ import type {
 import type { TaskService } from './tasks/taskService'
 import type { ChatEngine } from './ai/chatEngine'
 import type { createToolRegistry } from './tools/registry'
+import type { ControlSessionService } from './control/sessionService'
+import type { DesktopService } from './control/desktopService'
+import type { BrowserService as ControlBrowserService } from './control/browserService'
+import type { OperatorClient } from './control/operatorClient'
 import type { MainWindowManager } from './windows/mainWindow'
 
 export type ToolRegistry = ReturnType<typeof createToolRegistry>
@@ -67,6 +71,10 @@ export interface AppContext {
   apps: AppService
   screen: ScreenService
   voice: VoiceService
+  control: ControlSessionService
+  desktop: DesktopService
+  browserControl: ControlBrowserService
+  operator: OperatorClient
   mainWindow: MainWindowManager
   exportBundle: typeof buildExportBundle
 }
@@ -94,6 +102,8 @@ const permissionKeys = [
   'terminal',
   'appLaunch',
   'browser',
+  'browserControl',
+  'desktopControl',
   'screen',
   'voice'
 ] as const
@@ -133,7 +143,7 @@ const settingsPatchSchema = z
     ai: z
       .object({
         contextMessages: z.number().int().min(4).max(80).optional(),
-        maxToolIterations: z.number().int().min(1).max(12).optional(),
+        maxToolIterations: z.number().int().min(1).max(60).optional(),
         temperature: z.number().min(0).max(2).optional(),
         streaming: z.boolean().optional(),
         systemInstructions: z.string().max(8000).optional(),
@@ -213,6 +223,8 @@ const schemas: Partial<Record<IpcMethod, z.ZodType>> = {
     .optional(),
   'tasks.get': z.object({ id }).strip(),
   'tasks.cancel': z.object({ id }).strip(),
+  'tasks.pause': z.object({ id }).strip(),
+  'tasks.resume': z.object({ id }).strip(),
   'tasks.retry': z.object({ id }).strip(),
   'projects.remove': z.object({ id }).strip(),
   'projects.scan': z.object({ id }).strip(),
@@ -519,6 +531,18 @@ function buildHandlers(ctx: AppContext): Record<IpcMethod, Handler> {
         ? { ok: true }
         : { ok: false, message: 'That task has already finished.' }
     },
+    'tasks.pause': (raw) => {
+      const input = raw as IpcContract['tasks.pause']['input']
+      return ctx.chat.pauseTask(input.id)
+        ? { ok: true, message: 'Pausing at the next checkpoint.' }
+        : { ok: false, message: 'That task is not running.' }
+    },
+    'tasks.resume': (raw) => {
+      const input = raw as IpcContract['tasks.resume']['input']
+      return ctx.chat.resumeTask(input.id)
+        ? { ok: true, message: 'Resuming.' }
+        : { ok: false, message: 'That task is not paused.' }
+    },
     'tasks.retry': (raw) => ctx.chat.retryTask((raw as IpcContract['tasks.retry']['input']).id),
 
     'projects.list': () => ctx.workspaces.list(),
@@ -610,6 +634,24 @@ function buildHandlers(ctx: AppContext): Record<IpcMethod, Handler> {
       return ctx.screen.capture()
     },
     'computer.screenStatus': () => ctx.screen.status(),
+
+    'control.state': () => ctx.control.activeState(),
+    'control.pause': () => {
+      ctx.control.pause()
+      void ctx.desktop.releaseAll()
+      return { ok: true, message: 'Computer control is paused.' }
+    },
+    'control.resume': () => {
+      ctx.control.resume()
+      return { ok: true, message: 'Computer control resumed.' }
+    },
+    'control.stop': async () => {
+      ctx.control.endAll('user stopped control')
+      for (const runId of ctx.chat.activeRunIds()) ctx.chat.cancel(runId)
+      await ctx.desktop.releaseAll()
+      await Promise.allSettled([ctx.browserControl.stop(), ctx.operator.stop()])
+      return { ok: true, message: 'Computer control stopped.' }
+    },
 
     'tools.list': () => ctx.tools.listInfo(),
 

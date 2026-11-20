@@ -1,19 +1,24 @@
 import {
   app,
   dialog,
+  globalShortcut,
   ipcMain,
   Menu,
   nativeImage,
   session,
-  Tray
+  shell,
+  Tray,
+  type SaveDialogOptions
 } from 'electron'
-import { mkdirSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   IPC_CHAT_EVENT,
-  IPC_TASK_EVENT
+  IPC_CONTROL_EVENT,
+  IPC_TASK_EVENT,
+  type WindowRole
 } from '@shared/ipc'
-import type { ChatEvent, Settings } from '@shared/types'
+import type { ChatEvent, ControlScope, Settings } from '@shared/types'
 import { Database } from './storage/database'
 import {
   ConversationRepository,
@@ -38,19 +43,31 @@ import { BrowserService } from './services/browserService'
 import { TaskService } from './tasks/taskService'
 import { createToolRegistry } from './tools/registry'
 import { ToolRuntime } from './tools/toolRuntime'
+import { ControlSessionService } from './control/sessionService'
+import { OperatorClient } from './control/operatorClient'
+import { DesktopService } from './control/desktopService'
+import { BrowserService as ControlBrowserService } from './control/browserService'
+import { encodeScreenshotBuffer, encodeScreenshotFile } from './control/screenshotEncoder'
 import { ChatEngine } from './ai/chatEngine'
 import { MainWindowManager } from './windows/mainWindow'
 import { MiniLauncherManager } from './windows/miniWindow'
+import { ControlHudManager } from './windows/controlHud'
 import { createIpcDispatcher, type AppContext } from './ipc'
 import { TRAY_ICON_PNG } from './trayIcon'
 
 const startedAt = new Date().toISOString()
 const isDev = Boolean(process.env.ELECTRON_RENDERER_URL)
 const e2e = Boolean(process.env.IGRIS_E2E)
+const STOP_HOTKEY = 'Control+Alt+Shift+X'
 let db: Database | null = null
 let tray: Tray | null = null
 let mainWindow: MainWindowManager | null = null
 let miniLauncher: MiniLauncherManager | null = null
+let controlHud: ControlHudManager | null = null
+let operatorClient: OperatorClient | null = null
+let desktopControl: DesktopService | null = null
+let browserControl: ControlBrowserService | null = null
+let controlSession: ControlSessionService | null = null
 let chat: ChatEngine | null = null
 let settingsService: SettingsService | null = null
 let conversations: ConversationRepository | null = null
@@ -107,8 +124,17 @@ async function start(): Promise<void> {
     try {
       mainWindow?.setQuitting(true)
       miniLauncher?.setQuitting(true)
+      controlHud?.setQuitting(true)
       chat?.cancelAll('shutdown')
       miniLauncher?.close()
+      controlHud?.close()
+      try {
+        void desktopControl?.releaseAll()
+        void browserControl?.stop()
+        controlSession?.endAll('app quit')
+      } catch {
+        // Control shutdown is best effort.
+      }
     } catch {
       // Continue shutdown even if a window is already gone.
     }
@@ -132,6 +158,8 @@ async function start(): Promise<void> {
   })
   app.on('will-quit', () => {
     if (dispatcherChannel) ipcMain.removeHandler(dispatcherChannel)
+    globalShortcut.unregisterAll()
+    operatorClient?.dispose()
     tray?.destroy()
     tray = null
   })
@@ -142,9 +170,14 @@ async function boot(): Promise<void> {
   const dataDir = join(userDataPath, 'data')
   const backupsDir = join(dataDir, 'backups')
   const screenshotsDir = join(dataDir, 'screenshots')
+  const controlScreenshotsDir = join(dataDir, 'control')
+  const operatorDir = join(userDataPath, 'operator')
+  const browserProfileDir = join(userDataPath, 'browser', 'igris-profile')
   mkdirSync(dataDir, { recursive: true })
   mkdirSync(backupsDir, { recursive: true })
   mkdirSync(screenshotsDir, { recursive: true })
+  mkdirSync(controlScreenshotsDir, { recursive: true })
+  mkdirSync(operatorDir, { recursive: true })
 
   db = new Database(join(dataDir, 'igris.db'))
   const database = db
@@ -163,7 +196,7 @@ async function boot(): Promise<void> {
   const credentials = new CredentialStore()
   const providers = new ProviderService(providerRepo, credentials, appLogger)
   const voice = new VoiceService(providers, appLogger)
-  const roles = new Map<number, 'main' | 'mini'>()
+  const roles = new Map<number, WindowRole>()
 
   const main = new MainWindowManager(roles, settings, appLogger)
   mainWindow = main
@@ -181,6 +214,75 @@ async function boot(): Promise<void> {
   const terminal = new TerminalService(workspaceRepo, appLogger)
   const apps = new AppService()
   const screen = new ScreenService(screenshotsDir)
+  const control = new ControlSessionService(undefined, undefined)
+  controlSession = control
+
+  const operatorPath = join(operatorDir, 'operator.ps1')
+  const bundledOperator = join(__dirname, 'operator.ps1')
+  const sourceOperator = existsSync(bundledOperator)
+    ? bundledOperator
+    : join(process.cwd(), 'src', 'main', 'control', 'operator.ps1')
+  try {
+    copyFileSync(sourceOperator, operatorPath)
+  } catch (error) {
+    appLogger.warn(
+      'control',
+      `The Windows operator script could not be installed: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
+  }
+
+  const operator = new OperatorClient({
+    logger: appLogger,
+    command: 'powershell.exe',
+    args: [
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      operatorPath
+    ],
+    cwd: operatorDir
+  })
+  const desktopControlService = new DesktopService({
+    operator,
+    sessions: control,
+    apps,
+    logger: appLogger,
+    screenshotsDir: controlScreenshotsDir,
+    encodeScreenshot: async (path) => encodeScreenshotFile(path),
+    openPath: (path) => shell.openPath(path),
+    self: { pid: process.pid, processName: 'igris' }
+  })
+  const browserControlService = new ControlBrowserService({
+    sessions: control,
+    profileDir: browserProfileDir,
+    logger: appLogger,
+    encodeScreenshot: async (buffer) => encodeScreenshotBuffer(buffer),
+    chooseDownloadPath: async ({ suggestedName, sourceUrl }) => {
+      const owner = mainWindow?.getWindow() ?? null
+      owner?.show()
+      owner?.focus()
+      const options: SaveDialogOptions = {
+        title: 'IGRIS: approve browser download',
+        defaultPath: join(app.getPath('downloads'), suggestedName),
+        buttonLabel: 'Download',
+        properties: ['createDirectory', 'showOverwriteConfirmation']
+      }
+      appLogger.info('control', `Download approval requested for ${suggestedName} (${sourceUrl}).`)
+      const result = owner
+        ? await dialog.showSaveDialog(owner, options)
+        : await dialog.showSaveDialog(options)
+      if (result.canceled || !result.filePath) return null
+      appLogger.info('control', `Download approved: ${suggestedName} -> ${result.filePath}`)
+      return result.filePath
+    }
+  })
+  operatorClient = operator
+  desktopControl = desktopControlService
+  browserControl = browserControlService
 
   const tasks = new TaskService(taskRepo, (taskId) => {
     main.send(IPC_TASK_EVENT, { type: 'changed', taskId })
@@ -192,7 +294,11 @@ async function boot(): Promise<void> {
     apps,
     screen,
     browser: browserService,
+    control,
+    desktop: desktopControlService,
+    managedBrowser: browserControlService,
     memories: memoryRepo,
+    tasks,
     settings: () => settings.get(),
     logger: appLogger
   })
@@ -216,10 +322,68 @@ async function boot(): Promise<void> {
     settings,
     tools,
     toolRuntime,
+    control,
     logger: appLogger,
     emit: emitChat
   })
   chat = chatEngine
+
+  const hud = new ControlHudManager(roles, appLogger)
+  controlHud = hud
+
+  const stopControl = async (reason: string): Promise<void> => {
+    try {
+      control.endAll(reason)
+      for (const runId of chatEngine.activeRunIds()) chatEngine.cancel(runId)
+      await desktopControlService.releaseAll()
+      await Promise.allSettled([browserControlService.stop(), operator.stop()])
+    } catch (error) {
+      appLogger.warn('control', `Control stop failed: ${String(error)}`)
+    }
+  }
+
+  control.onChange((state) => {
+    main.send(IPC_CONTROL_EVENT, { type: 'changed', state })
+    hud.update(state)
+    if (!state) {
+      globalShortcut.unregister(STOP_HOTKEY)
+      // Release held input. Keep the managed browser alive if it is playing
+      // media (music or video), so a completed "play this" task keeps playing.
+      // An explicit stop (HUD, hotkey, app quit) always closes it, and a new
+      // session that starts while this check runs keeps its browser.
+      const explicit = control.endedExplicitly()
+      void desktopControlService.releaseAll()
+      void (async () => {
+        const playing = !explicit && (await browserControlService.hasPlayingMedia())
+        if (playing && !control.activeState()) {
+          appLogger.info('control', 'Keeping the managed browser open because media is playing.')
+          return
+        }
+        if (!control.activeState()) await browserControlService.stop()
+      })()
+      return
+    }
+    try {
+      if (!globalShortcut.isRegistered(STOP_HOTKEY)) {
+        globalShortcut.register(STOP_HOTKEY, () => {
+          appLogger.info('control', 'Emergency stop hotkey pressed.')
+          void stopControl('stop hotkey')
+        })
+      }
+    } catch (error) {
+      appLogger.warn('control', `The stop hotkey could not be registered: ${String(error)}`)
+    }
+  })
+
+  if (e2e) {
+    const hooks = {
+      startControl: (goal: string, scope: ControlScope) =>
+        control.create(`e2e-${Date.now()}`, goal, scope),
+      stopControl: () => control.endAll('e2e stop'),
+      emitChatEvent: (event: ChatEvent) => emitChat(event)
+    }
+    ;(globalThis as typeof globalThis & { __igrisE2E?: typeof hooks }).__igrisE2E = hooks
+  }
 
   const context: AppContext = {
     version: app.getVersion(),
@@ -243,6 +407,10 @@ async function boot(): Promise<void> {
     apps,
     screen,
     voice,
+    control,
+    desktop: desktopControlService,
+    browserControl: browserControlService,
+    operator,
     mainWindow: main,
     exportBundle: buildExportBundle
   }

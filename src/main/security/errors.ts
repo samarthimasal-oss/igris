@@ -68,6 +68,23 @@ export function httpStatusToError(status: number, body: string): AppError {
     })
   }
   if (status === 429) {
+    const dailyExhausted = /per\s+day\s+limit|requests?\s+per\s+day|daily\s+(?:request\s+)?(?:limit|quota)/i.test(
+      clean
+    )
+    if (dailyExhausted) {
+      const rawRetry = clean.match(/retry in\s+([0-9]+h[0-9]+m[0-9.]+s)/i)?.[1]
+      const retry = rawRetry?.replace(/(\d+)h(\d+)m[0-9.]+s/i, '$1h $2m')
+      return new AppError(
+        'QUOTA',
+        `The provider's daily request quota is exhausted. Switch models or add billing${
+          retry ? `, or try again in about ${retry}` : ''
+        }.`,
+        {
+          retryable: false,
+          internal: `HTTP 429: ${clean}`
+        }
+      )
+    }
     return new AppError('RATE_LIMIT', 'The provider rate limit was reached. Wait a moment and retry.', {
       retryable: true,
       internal: `HTTP 429: ${clean}`

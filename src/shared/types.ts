@@ -17,6 +17,8 @@ export type PermissionKey =
   | 'terminal'
   | 'appLaunch'
   | 'browser'
+  | 'browserControl'
+  | 'desktopControl'
   | 'screen'
   | 'voice'
 
@@ -48,6 +50,15 @@ export interface AiSettings {
   streaming: boolean
   systemInstructions: string
   confirmSensitiveActions: boolean
+  autoFallback: boolean
+  verifyActions: boolean
+}
+
+export interface VoiceSettings {
+  ttsEnabled: boolean
+  ttsVoice: string
+  ttsRate: number
+  handsFree: boolean
 }
 
 export interface Settings {
@@ -56,6 +67,7 @@ export interface Settings {
   permissions: Permissions
   privacy: PrivacySettings
   ai: AiSettings
+  voice: VoiceSettings
   onboardingComplete: boolean
 }
 
@@ -150,6 +162,8 @@ export interface ToolCall {
   id: string
   name: string
   arguments: Record<string, unknown>
+  /** Gemini 3 signature on function-call parts; it must be echoed back next turn. */
+  thoughtSignature?: string
 }
 
 export interface ToolExecutionRecord {
@@ -224,6 +238,7 @@ export interface ConfirmationRequest {
   risk: 'medium' | 'high'
   argumentsPreview: string
   expiresAt: string
+  kind?: 'control' | 'action'
 }
 
 export interface ToolEventPayload {
@@ -247,7 +262,7 @@ export type ChatEvent =
       providerName: string
       model: string
     }
-  | { type: 'status'; runId: string; status: 'thinking' | 'working' | 'streaming'; detail?: string }
+  | { type: 'status'; runId: string; status: 'thinking' | 'working' | 'streaming' | 'paused'; detail?: string }
   | { type: 'delta'; runId: string; text: string }
   | { type: 'tool'; runId: string; tool: ToolEventPayload }
   | { type: 'confirmation'; runId: string; request: ConfirmationRequest }
@@ -272,6 +287,7 @@ export type TaskStatus =
   | 'planning'
   | 'awaiting_confirmation'
   | 'running'
+  | 'paused'
   | 'completed'
   | 'failed'
   | 'cancelled'
@@ -288,6 +304,26 @@ export interface Task {
   result: string | null
   conversationId: string | null
   runId: string | null
+  plan: TaskPlan | null
+  verification: TaskVerification | null
+}
+
+export interface TaskPlanStep {
+  title: string
+  status: 'pending' | 'completed' | 'failed' | 'unverified'
+  evidence: string | null
+}
+
+export interface TaskPlan {
+  steps: TaskPlanStep[]
+  risks: string | null
+  createdAt: string
+}
+
+export interface TaskVerification {
+  status: 'verified' | 'unverified' | 'failed'
+  evidence: string
+  checkedAt: string
 }
 
 export interface TaskStep {
@@ -405,6 +441,29 @@ export interface ScreenCapture {
   width: number
   height: number
   capturedAt: string
+}
+
+// --------------------------------------------------------------- control
+
+export type ControlScope = 'desktop' | 'browser' | 'both'
+
+export type ControlStatus = 'active' | 'paused' | 'stopped' | 'expired'
+
+export interface ControlSessionState {
+  id: string
+  goal: string
+  scope: ControlScope
+  status: ControlStatus
+  currentAction: string | null
+  actions: number
+  maxActions: number
+  startedAt: string
+  expiresAt: string
+}
+
+export type ControlEvent = {
+  type: 'changed'
+  state: ControlSessionState | null
 }
 
 /** A base64 image attached to a tool result so the model can actually see it. */
