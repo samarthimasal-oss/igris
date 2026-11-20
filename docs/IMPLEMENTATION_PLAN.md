@@ -24,8 +24,8 @@ tests and documentation, and no phase is marked complete until its tests pass.
 | Task-scoped approval, 20-min expiry, HUD, Pause/Resume, `Ctrl+Alt+Shift+X` stop | ✅ | `control/sessionService.ts`, `controlHud.ts`, `index.ts` |
 | Hard blocks (passwords, UAC, credential managers, own windows) + confirmations | ✅ | `control/policy.ts`, `desktopService.ts`, `registry.ts` gates |
 | Three tools: `request_computer_control`, `desktop`, `browser` | ✅ | `tools/registry.ts` |
-| Browser automation (managed Edge profile, refs, tabs, forms, verification) | ✅ | `control/browserService.ts`; Chrome fallback; downloads blocked; personal profile isolated |
-| Browser downloads with approval | 🔧 | Downloads are currently hard-blocked (`acceptDownloads: false`); an approval-gated path is a possible later add |
+| Browser automation (managed Edge profile, refs, tabs, forms, verification) | ✅ | `control/browserService.ts`; Chrome fallback; approval-gated downloads; personal profile isolated |
+| Browser downloads with approval | ✅ | Save dialog per file, active-session check, blocked executable/script types, 200 MB cap, no auto-open; results reported in `browser` state |
 | CAPTCHA/MFA human handoff | ✅ | `browser` action `handoff` with a reason pauses the control session and holds the run until the user resumes; Stop, expiry, cancel, and shutdown end the wait |
 | Voice: push-to-talk STT | ✅ | Mic capture in `ChatPage` → `voice.transcribe` (Gemini inline audio) |
 | Voice: TTS replies, VAD, interruptible speech, hands-free continuous mode | ✅ | `src/shared/speech.ts`, `ChatPage.tsx`, Settings → Voice; wake word deferred (see Phase 5) |
@@ -55,9 +55,9 @@ tests and documentation, and no phase is marked complete until its tests pass.
 
 ## Phase 2 — Fix existing functionality and reliability
 
-✅ Core slice complete (see audit table). Remaining: watchdog for hung provider
-requests is the 3-minute timeout (shipped); optional download-with-approval flow
-(⬜, later phase).
+✅ Core slice complete (see audit table). The 3-minute turn timeout is the
+hung-request watchdog (shipped); approval-gated browser downloads shipped with
+browser control.
 
 ## Phase 3 — Secure Windows desktop control
 

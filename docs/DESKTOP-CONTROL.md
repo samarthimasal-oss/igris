@@ -82,7 +82,7 @@ All privileged work stays in the main process. The renderer only approves, obser
 | `OperatorClient` (`src/main/control/operatorClient.ts`) | Spawns and supervises the PowerShell host; JSON-line request/response; timeouts; crash restart; graceful shutdown |
 | `DesktopService` (`src/main/control/desktopService.ts`) | Validates actions, applies policy, maps coordinates, resolves Start Menu shortcuts, enforces session scope, prompts for per-action gates, releases input on stop |
 | `operator.ps1` (`src/main/control/operator.ps1`) | In-box C# helper for `SendInput`, UI Automation, window management, screenshots, and monitor state; refuses password fields |
-| `BrowserService` (`src/main/control/browserService.ts`) | Lazily launches the managed browser; tab management; DOM snapshot with refs; actions; download/upload and unsafe-URL blocks |
+| `BrowserService` (`src/main/control/browserService.ts`) | Lazily launches the managed browser; tab management; DOM snapshot with refs; actions; per-download save-dialog approval, upload and unsafe-URL blocks |
 | `ControlSessionService` (`src/main/control/sessionService.ts`) | Session creation, scope, expiry, pause/stop, action budget, HUD state, per-task binding |
 | `ControlHudManager` (`src/main/windows/controlHud.ts`) | 360×92 frameless always-on-top status window; shows without stealing focus; hides when no session |
 | `policy.ts` | Key-chord parsing, window blocklist, URL validation, sensitive-text heuristics |
@@ -266,7 +266,7 @@ Actions accept a `ref` first, then a Playwright selector, then role + name. Stal
 | `screenshot` | Viewport image, downscaled like desktop screenshots |
 | `wait` | Timeout max 10 seconds, or wait for text |
 
-Downloads, uploads, `file://`, `javascript:`, `data:`, camera, microphone, geolocation, and notifications are blocked in v1.
+Downloads require a save-dialog approval for every file (while an active browser-scoped session exists), and executable/script/installer types are refused. Uploads, `file://`, `javascript:`, `data:`, camera, microphone, geolocation, and notifications are blocked.
 
 ### Sensitive-page gates
 
@@ -345,7 +345,7 @@ Three new tools, all in `src/main/tools/registry.ts`.
 | Higher-integrity/elevated windows | UIPI blocks `SendInput`; detect and refuse |
 | IGRIS’s own windows and process | Prevent self-control loops and prompt manipulation |
 | Known credential managers (`1Password`, `Bitwarden`, `KeePass`, `LastPass`, `Dashlane`) | Protect secrets that may be visible |
-| Browser `file://`, `javascript:`, `data:`; downloads/uploads | Keep the browser sandbox and filesystem boundary intact |
+| Browser `file://`, `javascript:`, `data:`; executable/script downloads; uploads | Keep the browser sandbox and filesystem boundary intact; other downloads require explicit approval |
 | `Ctrl+Alt+Delete` | Windows reserves it |
 
 ### Always-confirm actions (even if confirmations are off)

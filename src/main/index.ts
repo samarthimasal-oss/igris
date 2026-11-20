@@ -7,7 +7,8 @@ import {
   nativeImage,
   session,
   shell,
-  Tray
+  Tray,
+  type SaveDialogOptions
 } from 'electron'
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -259,7 +260,25 @@ async function boot(): Promise<void> {
     sessions: control,
     profileDir: browserProfileDir,
     logger: appLogger,
-    encodeScreenshot: async (buffer) => encodeScreenshotBuffer(buffer)
+    encodeScreenshot: async (buffer) => encodeScreenshotBuffer(buffer),
+    chooseDownloadPath: async ({ suggestedName, sourceUrl }) => {
+      const owner = mainWindow?.getWindow() ?? null
+      owner?.show()
+      owner?.focus()
+      const options: SaveDialogOptions = {
+        title: 'IGRIS: approve browser download',
+        defaultPath: join(app.getPath('downloads'), suggestedName),
+        buttonLabel: 'Download',
+        properties: ['createDirectory', 'showOverwriteConfirmation']
+      }
+      appLogger.info('control', `Download approval requested for ${suggestedName} (${sourceUrl}).`)
+      const result = owner
+        ? await dialog.showSaveDialog(owner, options)
+        : await dialog.showSaveDialog(options)
+      if (result.canceled || !result.filePath) return null
+      appLogger.info('control', `Download approved: ${suggestedName} -> ${result.filePath}`)
+      return result.filePath
+    }
   })
   operatorClient = operator
   desktopControl = desktopControlService

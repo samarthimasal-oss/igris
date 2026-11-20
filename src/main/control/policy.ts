@@ -211,3 +211,51 @@ export function clipText(text: string, limit: number): string {
   if (last >= 0xd800 && last <= 0xdbff) cut = cut.slice(0, -1)
   return `${cut}\n[truncated]`
 }
+
+/** Upper bound for one approved download; larger files are refused. */
+export const MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024
+
+/** Never saved from the managed browser, even with user approval. */
+const BLOCKED_DOWNLOAD_EXTENSIONS = new Set([
+  'bat',
+  'cmd',
+  'com',
+  'cpl',
+  'dll',
+  'exe',
+  'hta',
+  'img',
+  'iso',
+  'jar',
+  'js',
+  'jse',
+  'lnk',
+  'msi',
+  'msix',
+  'pif',
+  'ps1',
+  'psm1',
+  'reg',
+  'scr',
+  'sys',
+  'vbe',
+  'vbs',
+  'wsf',
+  'wsh'
+])
+
+/** Keeps the browser's suggested name as a safe basename for a save dialog. */
+export function sanitizeDownloadName(input: string): string {
+  const base = String(input ?? '').split(/[\\/]/).pop() ?? ''
+  const cleaned = base
+    .replace(/[\u0000-\u001f<>:"|?*]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .trim()
+  const safe = (cleaned || 'download').slice(0, 150)
+  return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(safe) ? `_${safe}` : safe
+}
+
+export function isBlockedDownloadName(name: string): boolean {
+  const match = /\.([a-z0-9]{1,8})$/i.exec(String(name ?? '').trim())
+  return match ? BLOCKED_DOWNLOAD_EXTENSIONS.has(match[1].toLowerCase()) : false
+}

@@ -26,7 +26,7 @@
 | Terminal safeguards | Complete | No shell, allowlist, blocked git/npm operations, output caps |
 | No fake AI / no local models | Complete | Provider required; explicit “no local model runtime” messaging |
 | Windows 10/11 packaging | Complete | NSIS installer built at `release/IGRIS-1.0.0-x64-Setup.exe` |
-| Tests | Complete | 199 unit/integration (1 skipped) + 10 Electron E2E passing |
+| Tests | Complete | 209 unit/integration (1 skipped) + 10 Electron E2E passing |
 | Documentation | Complete | README + architecture, security, testing, status docs |
 | Secrets excluded from git | Complete | `.gitignore`; no keys or `.env` files in the tree |
 
@@ -34,7 +34,7 @@
 
 ```text
 npm run typecheck   PASS
-npm test            29 files, 199 passed, 1 skipped
+npm test            30 files, 209 passed, 1 skipped
 npm run test:e2e    9 tests PASS
 npm run test:packaged PASS (packaged IGRIS.exe, operator asset, HUD)
 npm run pack        PASS -> release/win-unpacked/IGRIS.exe
@@ -64,6 +64,8 @@ Agent orchestration (Phase 6 slice): multi-action tasks record a plan via the `p
 Running tasks can now be paused mid-run, completing the Task Manager requirement. A pause blocks the executor at the next checkpoint — between model turns and between tool calls, never mid-action — and persists the task as `paused` (Task Monitor shows Pause/Resume and the chat composer swaps Stop-adjacent Pause for Resume). Cancel, the global stop, and app shutdown all release a paused run; a paused task interrupted by a crash is reaped as failed on startup (`tests/unit/taskPause.test.ts`).
 
 CAPTCHA and MFA no longer stall a browser task. The model calls `browser` with action `handoff` and a reason; the control session pauses via the same gate the HUD uses, and the executor holds the run until the user presses Resume, then re-observes the page and continues. Stop, session expiry, cancel, and shutdown all end the wait, and the 10-minute run clock is paused while the user works. No new permission or approval path was added (`tests/unit/browserHandoff.test.ts`).
+
+Browser downloads are no longer hard-blocked. Each download opens a native save dialog titled "IGRIS: approve browser download" and is saved only if the user picks a destination while an active browser-scoped session exists; the session is re-checked after the dialog. Suggested names are reduced to a safe basename, executable/script/installer types and uploads are refused, files over 200 MB are refused, nothing is opened automatically, and denied or failed transfers are deleted from Playwright's temporary store. Results appear in the `browser` state output (`tests/unit/browserDownloads.test.ts`).
 
 Memory saves are now duplicate-guarded: `save_memory` normalizes text (case, punctuation, whitespace) and compares token overlap (Jaccard ≥ 0.8) against the existing store; a duplicate is refused with the existing memory id reported, instead of silently adding another near-copy (`src/shared/similar.ts`, `tests/unit/memoryDedupe.test.ts`).
 
@@ -136,10 +138,11 @@ Visual QA at 1442×816: no horizontal overflow on any route; bridge present; Con
 - [x] Re-ran the IPC/security audit for the new slices, refreshed SECURITY.md, and rebuilt the installer with a fresh checksum (Phase 10).
 - [x] Added task-level pause/resume mid-run: a pause blocks the executor at the next checkpoint, persists the task as `paused`, and resume/cancel/shutdown all release it (completes the Task Manager requirement).
 - [x] Added CAPTCHA/MFA human handoff: `browser` action `handoff` pauses control and holds the run (with the run clock paused) until Resume, or ends the wait on Stop/expiry/cancel/shutdown.
+- [x] Added approval-gated browser downloads: every file needs a save-dialog approval while a browser-scoped session is active; executable/script types, uploads, and files over 200 MB are refused, and nothing is opened automatically.
 
 - **Initial release commit:** `c315cd7a09641a33d0337214c607a12f9b32e447`
 - **Remote:** `https://github.com/samarthimasal-oss/igris`
 - **Desktop-control branch:** `feature/desktop-control`
-- **Installer SHA-256:** `57E16102B8CA175B429FB734885DCFB2496A5A1986702B08FA8AC9857BDD3D53` (rebuilt after all IGRIS 2.0 slices — fallback, voice, orchestration, pause/resume, handoff, memory dedupe, checkpoints; packaged smoke passes)
+- **Installer SHA-256:** `0354FFD54A5254C383F00120A3F035B72B88835472D9607E68723E06A0DB2417` (rebuilt after all IGRIS 2.0 slices — fallback, voice, orchestration, pause/resume, handoff, downloads, memory dedupe, checkpoints; packaged smoke passes)
 
 The NSIS installer is built locally but intentionally not committed. It is unsigned and is not attached to a GitHub release.

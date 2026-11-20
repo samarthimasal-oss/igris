@@ -120,7 +120,7 @@ Desktop and browser control are separate permissions and are never implied by `S
 - A session lasts at most 20 minutes, allows 120 actions, and ends when the task ends, fails, is cancelled, or you stop it.
 - A floating HUD and a Home-page control strip show the current action with Pause/Resume/Stop. `Ctrl+Alt+Shift+X` stops control globally; the shortcut is registered only while a session is active.
 - Closing windows, typing into a shell, launching an app for the first time, and checkout/payment/send patterns always ask, even when per-call confirmations are off.
-- Password fields, UAC/elevated windows, credential managers, IGRIS's own windows, browser downloads/uploads, and `file://`/`javascript:`/`data:` URLs are hard-blocked.
+- Password fields, UAC/elevated windows, credential managers, IGRIS's own windows, browser uploads, executable/script downloads, and `file://`/`javascript:`/`data:` URLs are hard-blocked. Other downloads need an explicit save-dialog approval and are never opened automatically.
 - The managed browser uses its own profile at `%APPDATA%\IGRIS\browser\igris-profile`. It never attaches to your daily Chrome or Edge profile.
 
 Sensitive actions still require a per-call confirmation by default (`Settings → Intelligence → Confirm sensitive actions`). File writes create a backup; deletes go to the Windows Recycle Bin where possible; terminal commands run without a shell and are constrained by an executable allowlist.
@@ -221,7 +221,7 @@ Use **Settings → Privacy & data** to export data, clear conversation and memor
 ### Verification status
 
 - `npm run typecheck` — passing
-- `npm test` - **199 passing, 1 skipped** across 29 files
+- `npm test` - **209 passing, 1 skipped** across 30 files
 - `npm run test:e2e` - **10 Electron smoke tests passing**
 - `npm run test:packaged` — packaged `IGRIS.exe` boots, bridges, routes, and loads the operator asset and HUD
 - `npm run pack` — passing (`release/win-unpacked/IGRIS.exe`)

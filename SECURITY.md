@@ -25,7 +25,7 @@ Highlights:
 - The renderer is sandboxed and reaches privileged code only through a validated, role-limited IPC bridge.
 - Filesystem access is confined to approved workspaces with lexical and real-path checks.
 - Terminal commands are parsed without a shell and constrained by an allowlist; this is risk reduction, not a sandbox.
-- Browser content runs in a separate sandboxed session; permissions and downloads are denied.
+- Browser content runs in a separate sandboxed session; permissions are denied, and downloads require an explicit save-dialog approval.
 - The installer in this repository is unsigned. Sign it before distributing it widely.
 
 ## Supported versions

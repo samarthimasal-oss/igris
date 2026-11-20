@@ -1,9 +1,17 @@
-import { mkdirSync } from 'node:fs'
-import type { BrowserContext, Locator, Page } from 'playwright-core'
+import { mkdirSync, statSync } from 'node:fs'
+import type { BrowserContext, Download, Locator, Page } from 'playwright-core'
 import type { ToolImage } from '@shared/types'
 import { AppError } from '../security/errors'
 import type { ControlSessionService } from './sessionService'
-import { clipText, isSensitiveText, parseKeyChord, validateBrowserUrl } from './policy'
+import {
+  clipText,
+  isBlockedDownloadName,
+  isSensitiveText,
+  MAX_DOWNLOAD_BYTES,
+  parseKeyChord,
+  sanitizeDownloadName,
+  validateBrowserUrl
+} from './policy'
 import type { DesktopConfirmRequest } from './desktopService'
 
 export interface BrowserRunContext {
@@ -18,6 +26,10 @@ export interface BrowserServiceDeps {
   logger: { info(scope: string, message: string): void; warn(scope: string, message: string): void }
   encodeScreenshot: (buffer: Buffer) => Promise<ToolImage | null>
   sleep?: (ms: number) => Promise<void>
+  /** Asks the user where to save a download; null denies it. */
+  chooseDownloadPath?: (input: { suggestedName: string; sourceUrl: string }) => Promise<string | null>
+  /** Override for tests. */
+  maxDownloadBytes?: number
 }
 
 export interface BrowserActionArgs {
@@ -239,12 +251,28 @@ function formatTabs(pages: Page[], active: Page | null): string {
     .join('\n')
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message.split('\n')[0]! : String(error)
+}
+
+function formatMegabytes(bytes: number): string {
+  return `${Math.round(bytes / (1024 * 1024))} MB`
+}
+
+interface DownloadRecord {
+  name: string
+  status: 'saved' | 'denied' | 'blocked' | 'failed'
+  detail: string | null
+}
+
 export class BrowserService {
   private context: BrowserContext | null = null
   private active: Page | null = null
   private launching: Promise<void> | null = null
   private browserLabel: string | null = null
   private lastError: string | null = null
+  private readonly downloads: DownloadRecord[] = []
+  private readonly attached = new WeakSet<Page>()
   private readonly sleep: (ms: number) => Promise<void>
 
   constructor(private readonly deps: BrowserServiceDeps) {
@@ -265,13 +293,15 @@ export class BrowserService {
     }
     const pages = this.context.pages()
     this.ensureActive(pages)
+    const summary = this.downloadSummary()
     return {
       text: this.context
         ? [
             `Managed browser: running${this.browserLabel ? ` (${this.browserLabel})` : ''}`,
             `Profile: ${this.deps.profileDir}`,
             `Tabs (${pages.length}):`,
-            formatTabs(pages, this.active)
+            formatTabs(pages, this.active),
+            ...(summary ? [summary] : [])
           ].join('\n')
         : 'Managed browser is not running.',
       display: `${pages.length} browser tab${pages.length === 1 ? '' : 's'}`
@@ -392,7 +422,7 @@ export class BrowserService {
           headless: false,
           viewport: null,
           args: ['--start-maximized', '--autoplay-policy=no-user-gesture-required'],
-          acceptDownloads: false
+          acceptDownloads: true
         })
         context.setDefaultTimeout(15_000)
         context.on('page', (page) => this.attachPage(page))
@@ -416,9 +446,12 @@ export class BrowserService {
   }
 
   private attachPage(page: Page): void {
+    if (this.attached.has(page)) return
+    this.attached.add(page)
     page.on('download', (download) => {
-      this.deps.logger.warn('control', `Blocked browser download: ${download.suggestedFilename()}`)
-      void download.cancel().catch(() => undefined)
+      void this.handleDownload(download).catch((error) => {
+        this.deps.logger.warn('control', `Download handling failed: ${errorMessage(error)}`)
+      })
     })
     page.on('dialog', (dialog) => {
       this.deps.logger.warn('control', `Dismissed a browser ${dialog.type()} dialog.`)
@@ -457,6 +490,104 @@ export class BrowserService {
         )
       })
       .catch(() => undefined)
+  }
+
+  /**
+   * Downloads are never automatic. Each one is policy-checked, offered to the
+   * user through a save dialog, re-checked against the session, then saved.
+   * Nothing is opened, and files stay in Playwright's temp store until then.
+   */
+  private async handleDownload(download: Download): Promise<void> {
+    const name = sanitizeDownloadName(download.suggestedFilename())
+    const sourceUrl = download.url()
+    const state = this.deps.sessions.activeState()
+    if (!state || state.status !== 'active' || state.scope === 'desktop') {
+      await this.rejectDownload(download, name, 'denied', 'no active browser control session')
+      return
+    }
+    if (isBlockedDownloadName(name)) {
+      await this.rejectDownload(download, name, 'blocked', 'executable and script downloads are not allowed')
+      return
+    }
+    if (!this.deps.chooseDownloadPath) {
+      await this.rejectDownload(download, name, 'denied', 'no approval channel is configured')
+      return
+    }
+    this.deps.logger.info('control', `Download requested: ${name} from ${sourceUrl}`)
+    let target: string | null = null
+    try {
+      target = await this.deps.chooseDownloadPath({ suggestedName: name, sourceUrl })
+    } catch (error) {
+      await this.rejectDownload(download, name, 'failed', `the save dialog failed: ${errorMessage(error)}`)
+      return
+    }
+    if (!target) {
+      await this.rejectDownload(download, name, 'denied', 'the user declined')
+      return
+    }
+    const after = this.deps.sessions.activeState()
+    if (!after || after.status !== 'active') {
+      await this.rejectDownload(download, name, 'denied', 'control ended before the file was saved')
+      return
+    }
+    let failure: string | null
+    let size = 0
+    try {
+      failure = await download.failure()
+      if (!failure) {
+        const temp = await download.path()
+        if (temp) size = statSync(temp).size
+      }
+    } catch (error) {
+      this.recordDownload({ name, status: 'failed', detail: errorMessage(error) })
+      this.deps.logger.warn('control', `Download "${name}" failed: ${errorMessage(error)}`)
+      return
+    }
+    if (failure) {
+      this.recordDownload({ name, status: 'failed', detail: failure })
+      this.deps.logger.warn('control', `Download "${name}" failed: ${failure}`)
+      return
+    }
+    const limit = this.deps.maxDownloadBytes ?? MAX_DOWNLOAD_BYTES
+    if (size > limit) {
+      await this.rejectDownload(download, name, 'blocked', `larger than the ${formatMegabytes(limit)} limit`)
+      return
+    }
+    try {
+      await download.saveAs(target)
+      this.recordDownload({ name, status: 'saved', detail: target })
+      this.deps.logger.info('control', `Saved approved download "${name}" to ${target}.`)
+    } catch (error) {
+      this.recordDownload({ name, status: 'failed', detail: errorMessage(error) })
+      this.deps.logger.warn('control', `Could not save download "${name}": ${errorMessage(error)}`)
+    }
+  }
+
+  private async rejectDownload(
+    download: Download,
+    name: string,
+    status: 'denied' | 'blocked' | 'failed',
+    detail: string
+  ): Promise<void> {
+    await download.cancel().catch(() => undefined)
+    await download.delete().catch(() => undefined)
+    this.recordDownload({ name, status, detail })
+    this.deps.logger.warn('control', `Download "${name}" ${status}: ${detail}.`)
+  }
+
+  private recordDownload(entry: DownloadRecord): void {
+    this.downloads.unshift(entry)
+    this.downloads.splice(20)
+  }
+
+  private downloadSummary(): string | null {
+    if (!this.downloads.length) return null
+    return [
+      'Downloads this session:',
+      ...this.downloads.map(
+        (entry) => `- ${entry.name}: ${entry.status}${entry.detail ? ` (${entry.detail})` : ''}`
+      )
+    ].join('\n')
   }
 
   private async ensureActive(pages?: Page[]): Promise<Page> {

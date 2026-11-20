@@ -146,7 +146,7 @@ Repositories keep SQL in one place and return shared DTOs. The renderer never ta
 - **ScreenService** captures the primary display to the app's screenshot directory only after permission; the `see_screen` tool converts the capture into a `ToolImage` the model receives as an inline image.
 - **OperatorClient** supervises one hidden `powershell.exe` per app run. `operator.ps1` compiles an in-box C# helper for `SendInput`, UI Automation, windows, and screenshots. Requests and responses are newline-delimited JSON; no operator data reaches the renderer.
 - **DesktopService** validates `desktop` actions, applies the hard blocks and confirmation gates, resolves apps through the existing allowlist and Start Menu, saves screenshots under `<userData>/screenshots/<taskId>/`, and releases input on stop.
-- **Control BrowserService** lazily launches a dedicated persistent Edge profile (Chrome fallback) through `playwright-core`, snapshots interactive elements with injected refs, blocks downloads/uploads and unsafe URL schemes, and closes on session end or app quit.
+- **Control BrowserService** lazily launches a dedicated persistent Edge profile (Chrome fallback) through `playwright-core`, snapshots interactive elements with injected refs, blocks uploads and unsafe URL schemes, requires a save-dialog approval per download (executables/scripts refused, 200 MB cap), and closes on session end or app quit.
 - **ControlSessionService** owns the task-bound session: scope, 20-minute expiry, 120-action budget, pause/resume/stop, and HUD state.
 - **VoiceService** transcribes microphone audio through the resolved default provider's transcription path (Gemini inline audio today) and surfaces a clear error for provider kinds without voice support.
 

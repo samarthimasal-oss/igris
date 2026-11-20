@@ -128,7 +128,7 @@ Desktop control is a separate, task-scoped capability. It is never enabled impli
 - Higher-integrity/elevated windows; `SendInput` is subject to UIPI, so IGRIS refuses rather than clicking blindly.
 - IGRIS’s own windows and process, to prevent self-control loops and prompt manipulation.
 - Known credential managers (`1Password`, `Bitwarden`, `KeePass`, `LastPass`, `Dashlane`).
-- Browser `file://`, `javascript:`, and `data:` URLs, plus downloads and uploads in the managed browser.
+- Browser `file://`, `javascript:`, and `data:` URLs, uploads, and executable/script downloads in the managed browser.
 
 ### Always-confirm actions
 
@@ -143,6 +143,7 @@ Desktop control is a separate, task-scoped capability. It is never enabled impli
 - The user can watch the browser and sign in manually; IGRIS does not type passwords.
 - Page text, DOM, screenshots, and window titles are untrusted data. Instructions found on a page cannot change scope, permissions, or the goal.
 - Downloads and uploads are blocked in v1.
+- Downloads are approval-gated instead of automatic. Each one opens a save dialog titled "IGRIS: approve browser download" and is saved only if the user picks a destination while an active browser-scoped session exists. Names are reduced to a safe basename, executable/script/installer types (`.exe`, `.msi`, `.bat`, `.ps1`, `.js`, `.lnk`, `.reg`, and similar) are refused without prompting, files over 200 MB are refused, nothing is opened, and the session is re-checked after the dialog. Denied/failed downloads are cancelled and deleted from the browser's temporary store.
 
 **Caveat:** control is a policy layer, not a sandbox. An approved model can still operate any unelevated app and read anything visible on screen. Approve narrowly, watch the HUD, and stop when the task is done.
 

@@ -27,7 +27,7 @@ Verified on Windows 11 (10.0.26200) with Node 24.18.0, Electron 45.1.0, and npm 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Pass (node + web) |
-| `npm test` | **199 passing**, 1 skipped, 29 files |
+| `npm test` | **209 passing**, 1 skipped, 30 files |
 | `npm run test:e2e` | **9 passing**, 1 worker |
 | `npm run test:packaged` | Pass; packaged `IGRIS.exe` boots, bridges, navigates |
 | `npm run pack` | Pass; `release/win-unpacked/IGRIS.exe` |
@@ -220,6 +220,15 @@ Live provider calls are intentionally not automated because no API key is presen
 - a stopped or ended session ends the wait with "do not call tools" guidance;
 - abort and persisted cancel requests release the gate (the latter aborts the controller).
 
+### `tests/unit/browserDownloads.test.ts`
+
+- suggested filenames are reduced to a safe basename (no paths, invalid characters, trailing dots/spaces, or Windows device names);
+- executables, installers, and scripts are blocked case-insensitively, including double extensions, while normal document types pass;
+- an approved download is saved only at the path the user chose, and the result appears in the browser state summary;
+- cancelling the save dialog denies and deletes the download;
+- no prompt is shown when the session is missing, paused, or desktop-only;
+- failed transfers, oversized files, and control ending during the dialog are recorded without saving anything.
+
 ### `tests/unit/geminiSchema.test.ts`
 
 - numeric `exclusiveMinimum`/`exclusiveMaximum` become inclusive `minimum`/`maximum`;
@@ -254,7 +263,7 @@ $env:IGRIS_BROWSER_SMOKE = "1"
 npm test
 ```
 
-It starts a local HTTP server, launches the managed Edge profile, navigates, snapshots, clicks, types, and verifies the result. It never touches the user's daily browser profile. Without the variable the test is skipped.
+It starts a local HTTP server, launches the managed Edge profile, navigates, snapshots, clicks, types, and verifies the result. It also downloads a file through the approval callback and checks the saved bytes, then confirms an `.exe` download is refused without prompting. It never touches the user's daily browser profile. Without the variable the test is skipped.
 
 ## Electron end-to-end tests
 
@@ -359,7 +368,8 @@ Before releasing a build:
 - [ ] Typing into Windows Terminal asks for confirmation.
 - [ ] Closing a window asks for confirmation; first launch of a new app asks once per session.
 - [ ] The managed browser opens with the dedicated profile, navigates to a local or public page, snapshots, clicks, and types.
-- [ ] `file://`, `javascript:`, and `data:` URLs are rejected by the browser tool; downloads/uploads are blocked.
+- [ ] `file://`, `javascript:`, and `data:` URLs are rejected by the browser tool; uploads are blocked and executable/script downloads are refused.
+- [ ] A normal download opens the "IGRIS: approve browser download" save dialog; saving works, cancelling leaves nothing on disk, and `browser` state lists the result.
 - [ ] Browser screenshots stay at or below 1280 px and the model context keeps at most two images.
 
 ### Windows behavior

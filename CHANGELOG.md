@@ -58,6 +58,12 @@ tested slice. See `docs/IMPLEMENTATION_PLAN.md` for the full phase plan and
   paused) until the user presses Resume, and then the model re-observes the
   page. Stop, expiry, cancel, and shutdown all end the wait. No new
   permissions (`tests/unit/browserHandoff.test.ts`).
+- **Approval-gated browser downloads.** Downloads are no longer hard-blocked.
+  Each one opens a native save dialog and is written only to the destination
+  the user picks while a browser-scoped session is active. Executable, script,
+  and installer types are refused, uploads stay blocked, files over 200 MB are
+  refused, nothing is opened, and results are reported in `browser` state
+  (`tests/unit/browserDownloads.test.ts`).
 - **Final security audit + rebuild (Phase 10).** Permissions/IPC re-audit
   clean for all new slices (verifier has no tools; fallback only retries the
   user's own providers; dedupe is local; rename checkpoints stay in the backup

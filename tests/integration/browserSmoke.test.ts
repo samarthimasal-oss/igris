@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -28,6 +28,8 @@ const page = `<!doctype html>
     <button id="save" onclick="document.getElementById('result').textContent = 'Saved: ' + document.getElementById('email').value">Save changes</button>
     <button id="order">Place order</button>
     <a href="/second">Second page</a>
+    <a href="/download" id="download">Download sample</a>
+    <a href="/download-exe" id="download-exe">Download executable</a>
     <p id="result">Nothing saved</p>
   </body>
 </html>`
@@ -40,12 +42,30 @@ describe.skipIf(!enabled)('managed browser smoke test', () => {
   let server: Server
   let base: string
   let profileDir: string
+  let downloadDir: string
   let service: BrowserService
   let sessions: ControlSessionService
   const confirmations: string[] = []
+  const downloadRequests: string[] = []
 
   beforeAll(async () => {
     server = createServer((request, response) => {
+      if (request.url === '/download') {
+        response.writeHead(200, {
+          'content-type': 'text/plain',
+          'content-disposition': 'attachment; filename="sample.txt"'
+        })
+        response.end('hello download')
+        return
+      }
+      if (request.url === '/download-exe') {
+        response.writeHead(200, {
+          'content-type': 'application/octet-stream',
+          'content-disposition': 'attachment; filename="evil.exe"'
+        })
+        response.end('MZ')
+        return
+      }
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
       response.end(request.url === '/second' ? secondPage : page)
     })
@@ -54,6 +74,7 @@ describe.skipIf(!enabled)('managed browser smoke test', () => {
     if (!address || typeof address === 'string') throw new Error('no server address')
     base = `http://127.0.0.1:${address.port}`
     profileDir = mkdtempSync(join(tmpdir(), 'igris-browser-smoke-'))
+    downloadDir = mkdtempSync(join(tmpdir(), 'igris-download-smoke-'))
     sessions = new ControlSessionService(() => Date.now(), {
       ttlMs: 20 * 60_000,
       maxActions: 120,
@@ -66,7 +87,11 @@ describe.skipIf(!enabled)('managed browser smoke test', () => {
       encodeScreenshot: async (buffer) => ({
         mimeType: 'image/jpeg',
         data: buffer.toString('base64')
-      })
+      }),
+      chooseDownloadPath: async ({ suggestedName }) => {
+        downloadRequests.push(suggestedName)
+        return join(downloadDir, suggestedName)
+      }
     })
   }, 60_000)
 
@@ -75,6 +100,7 @@ describe.skipIf(!enabled)('managed browser smoke test', () => {
     await new Promise<void>((resolve) => server?.close(() => resolve()))
     try {
       rmSync(profileDir, { recursive: true, force: true })
+      rmSync(downloadDir, { recursive: true, force: true })
     } catch {
       // Edge may still hold a lock; the OS temp cleaner will get it.
     }
@@ -142,6 +168,22 @@ describe.skipIf(!enabled)('managed browser smoke test', () => {
     const tabs = await service.run({ action: 'tabs' }, ctx)
     expect(tabs.text).toContain('Tabs (2)')
     await service.run({ action: 'tab_close', tab: 2 }, ctx)
+
+    await service.run({ action: 'click', role: 'link', name: 'Download sample' }, ctx)
+    const savedPath = join(downloadDir, 'sample.txt')
+    for (let attempt = 0; attempt < 50 && !existsSync(savedPath); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    expect(downloadRequests).toEqual(['sample.txt'])
+    expect(existsSync(savedPath)).toBe(true)
+    expect(readFileSync(savedPath, 'utf8')).toBe('hello download')
+    expect((await service.run({ action: 'state' }, ctx)).text).toContain('sample.txt: saved')
+
+    await service.run({ action: 'click', role: 'link', name: 'Download executable' }, ctx)
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    expect(downloadRequests).not.toContain('evil.exe')
+    expect(existsSync(join(downloadDir, 'evil.exe'))).toBe(false)
+    expect((await service.run({ action: 'state' }, ctx)).text).toContain('evil.exe: blocked')
 
     await expect(
       service.run({ action: 'navigate', url: 'file:///C:/Windows/win.ini' }, ctx)
