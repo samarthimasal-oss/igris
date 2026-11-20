@@ -62,8 +62,8 @@ browser control.
 ## Phase 3 — Secure Windows desktop control
 
 ✅ Shipped earlier (`7b2e52b`, `24c2542`). Verified with unit tests, E2E HUD
-tests, packaged smoke, and live runs. Remaining enhancement: per-action
-screenshot diffing for verifier evidence (Phase 6).
+tests, packaged smoke, and live runs. Optional later enhancement: per-action
+screenshot diffing for verifier evidence.
 
 ## Phase 4 — Browser automation
 
@@ -71,7 +71,7 @@ screenshot diffing for verifier evidence (Phase 6).
 
 ## Phase 5 — Voice assistant
 
-🔧 Core slice complete. Shipped: TTS replies via `speechSynthesis` (Windows
+✅ Core slice complete. Shipped: TTS replies via `speechSynthesis` (Windows
 voices, no paid API) with voice settings (enabled, voice, rate) in Settings →
 Voice; spoken text is prose-only via `speechScript` (code/tables/markdown
 stripped, tested); speech is interrupted when the user talks, sends, or stops;
@@ -92,7 +92,7 @@ Files: `src/shared/speech.ts` (new), `ChatPage.tsx`, `SettingsPage.tsx`,
 
 ## Phase 6 — Agent orchestration
 
-🔧 Core slice complete. Shipped:
+✅ Core slice complete. Shipped:
 
 1. Planner artifact: the `plan_task` tool records ordered steps (1–12) and
    risks on the task row (`tasks.plan` JSON column, schema migration v2);
@@ -127,7 +127,7 @@ recovery, pause gate), `ipc.ts`, `preload/index.ts`, `SettingsPage.tsx`,
 
 ## Phase 7 — Persistent memory
 
-🔧 Core slice complete. Shipped: duplicate detection on save — `findSimilarMemory`
+✅ Core slice complete. Shipped: duplicate detection on save — `findSimilarMemory`
 in `src/shared/similar.ts` normalizes text and applies a Jaccard token-overlap
 threshold (0.8); the `save_memory` tool refuses near-duplicates and reports the
 existing memory id instead of adding a near-copy. Tested in
@@ -141,7 +141,7 @@ Files: `src/shared/similar.ts` (new), `tools/registry.ts` (`save_memory` gate).
 
 ## Phase 8 — Coding assistant
 
-🔧 Complete for the audited gaps. Findings during this pass:
+✅ Complete for the audited gaps. Findings during this pass:
 
 - `write_file` and `apply_patch` **already auto-backup** the previous version
   (`files.write` returns `backupPath`), so the "automatic checkpoint before
